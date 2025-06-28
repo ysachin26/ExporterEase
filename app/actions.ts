@@ -5,6 +5,14 @@ import User from "@/models/User"
 import Dashboard from "@/models/Dashboard"
 import bcrypt from "bcryptjs"
 import type mongoose from "mongoose"
+import { v2 as cloudinary } from "cloudinary"
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
 // This is a placeholder for a real OTP service.
 // In a production environment, you would integrate with an SMS gateway (e.g., Twilio, MSG91).
@@ -191,15 +199,6 @@ const calculateProfileCompletionPercentage = (user: any) => {
   return Math.round((completedFields / totalFields) * 100)
 }
 
-// Simulate file upload and return a URL (in production, use actual file upload service)
-async function simulateFileUpload(file: File): Promise<string> {
-  // In production, you would upload to a service like AWS S3, Cloudinary, etc.
-  // For now, we'll simulate with a fake URL
-  const timestamp = Date.now()
-  const fileName = file.name.replace(/[^a-zA-Z0-9.]/g, "_")
-  return `https://your-storage-bucket.com/uploads/${timestamp}_${fileName}`
-}
-
 // Get dashboard data for a user
 export async function getDashboardData() {
   await connectDB()
@@ -252,6 +251,7 @@ export async function getDashboardData() {
           name: doc.name,
           uploadedAt: doc.uploadedAt ? doc.uploadedAt.toISOString() : null,
           status: doc.status,
+          url: doc.url, // Include URL
         }))
       : [],
   }))
@@ -291,6 +291,134 @@ export async function getDashboardData() {
   }
 }
 
+// Helper function to determine file type and get appropriate Cloudinary upload options
+function getCloudinaryUploadOptions(file: File, documentType: string, userId: string) {
+  const fileExtension = file.name.split(".").pop()?.toLowerCase()
+  const isPdf = fileExtension === "pdf"
+
+  // Base configuration
+  const baseConfig = {
+    folder: `gofarmlyconnect_documents/${userId}`,
+    public_id: `${documentType}_${Date.now()}`,
+  }
+
+  // For PDFs, use raw resource type
+  if (isPdf) {
+    return {
+      ...baseConfig,
+      resource_type: "raw" as const,
+      format: "pdf",
+    }
+  }
+
+  // For images, use image resource type (default)
+  return {
+    ...baseConfig,
+    resource_type: "image" as const,
+  }
+}
+
+// New function to handle file uploads and save URLs
+export async function uploadDocument(formData: FormData) {
+  await connectDB()
+
+  const user = await User.findOne().sort({ createdAt: -1 })
+  if (!user) return { success: false, message: "User not found" }
+
+  const file = formData.get("file") as File
+  const documentType = formData.get("documentType") as string // e.g., "aadharCard", "panCard", "rentAgreement"
+  const stepId = formData.get("stepId") ? Number.parseInt(formData.get("stepId") as string) : undefined // Optional for registration documents
+
+  if (!file) {
+    return { success: false, message: "No file provided." }
+  }
+
+  if (!documentType) {
+    return { success: false, message: "Document type not specified." }
+  }
+
+  try {
+    // Convert file to buffer
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // Get appropriate upload options based on file type
+    const uploadOptions = getCloudinaryUploadOptions(file, documentType, user._id.toString())
+
+    // Upload to Cloudinary with appropriate resource type
+    const uploadResult = (await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(uploadOptions, (error, result) => {
+          if (error) return reject(error)
+          resolve(result)
+        })
+        .end(buffer)
+    })) as any
+
+    const fileUrl = uploadResult.secure_url
+
+    if (stepId) {
+      // This is a registration-specific document
+      const dashboard = await Dashboard.findOne({ userId: user._id })
+      if (!dashboard) return { success: false, message: "Dashboard not found" }
+
+      const step = dashboard.registrationSteps.find((s) => s.id === stepId)
+      if (!step) return { success: false, message: "Registration step not found" }
+
+      // Find or create the document entry within the step
+      const docEntry = step.documents.find((d) => d.name === documentType)
+      if (docEntry) {
+        docEntry.url = fileUrl
+        docEntry.uploadedAt = new Date()
+        docEntry.status = "uploaded" // Set status to uploaded upon successful upload
+      } else {
+        step.documents.push({
+          name: documentType,
+          url: fileUrl,
+          uploadedAt: new Date(),
+          status: "uploaded", // Set status to uploaded upon successful upload
+        })
+      }
+      await dashboard.save()
+    } else {
+      // This is a profile document
+      switch (documentType) {
+        case "aadharCard":
+          user.aadharCardUrl = fileUrl
+          break
+        case "panCard":
+          user.panCardUrl = fileUrl
+          break
+        case "photograph":
+          user.photographUrl = fileUrl
+          break
+        case "proofOfAddress":
+          user.proofOfAddressUrl = fileUrl
+          break
+        default:
+          return { success: false, message: "Invalid profile document type" }
+      }
+      await user.save()
+    }
+
+    // Update dashboard completion percentage for profile documents
+    const dashboard = await Dashboard.findOne({ userId: user._id })
+    if (dashboard) {
+      dashboard.profileCompletion.completionPercentage = calculateProfileCompletionPercentage(user)
+      await dashboard.save()
+    }
+
+    return {
+      success: true,
+      fileUrl: fileUrl,
+      completionPercentage: calculateProfileCompletionPercentage(user),
+    }
+  } catch (error: any) {
+    console.error("File upload error:", error)
+    return { success: false, message: `Upload failed: ${error.message}` }
+  }
+}
+
 // Update profile completion fields in the User model
 export async function updateProfileCompletion(field: string, value: boolean | string) {
   await connectDB()
@@ -315,55 +443,6 @@ export async function updateProfileCompletion(field: string, value: boolean | st
   return {
     success: true,
     completionPercentage: calculateProfileCompletionPercentage(user),
-  }
-}
-
-// New function to handle file uploads and save URLs
-export async function uploadDocument(documentType: string, file: File) {
-  await connectDB()
-
-  const user = await User.findOne().sort({ createdAt: -1 })
-  if (!user) return { success: false, message: "User not found" }
-
-  try {
-    // Simulate file upload (replace with actual upload logic)
-    const fileUrl = await simulateFileUpload(file)
-
-    // Update the appropriate field in the user document
-    switch (documentType) {
-      case "aadharCard":
-        user.aadharCardUrl = fileUrl
-        break
-      case "panCard":
-        user.panCardUrl = fileUrl
-        break
-      case "photograph":
-        user.photographUrl = fileUrl
-        break
-      case "proofOfAddress":
-        user.proofOfAddressUrl = fileUrl
-        break
-      default:
-        return { success: false, message: "Invalid document type" }
-    }
-
-    await user.save()
-
-    // Update dashboard completion percentage
-    const dashboard = await Dashboard.findOne({ userId: user._id })
-    if (dashboard) {
-      dashboard.profileCompletion.completionPercentage = calculateProfileCompletionPercentage(user)
-      await dashboard.save()
-    }
-
-    return {
-      success: true,
-      fileUrl: fileUrl,
-      completionPercentage: calculateProfileCompletionPercentage(user),
-    }
-  } catch (error: any) {
-    console.error("File upload error:", error)
-    return { success: false, message: `Upload failed: ${error.message}` }
   }
 }
 
@@ -420,25 +499,6 @@ export async function addNotification(title: string, message: string, type = "in
   }
 
   return { success: true, notification: plainNotification }
-}
-
-// Mark notification as read
-export async function markNotificationAsRead(notificationId: string) {
-  await connectDB()
-
-  const user = await User.findOne().sort({ createdAt: -1 })
-  if (!user) return { success: false, message: "User not found" }
-
-  const dashboard = await Dashboard.findOne({ userId: user._id })
-  if (!dashboard) return { success: false, message: "Dashboard not found" }
-
-  const notification = dashboard.notifications.id(notificationId)
-  if (notification) {
-    notification.read = true
-    await dashboard.save()
-  }
-
-  return { success: true }
 }
 
 // Email verification function

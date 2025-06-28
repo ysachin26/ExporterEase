@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Upload, Check, Mail, Phone, User, CreditCard, FileText, Camera, MapPin, Building } from "lucide-react"
+import {
+  Upload,
+  Check,
+  Mail,
+  Phone,
+  User,
+  CreditCard,
+  FileText,
+  Camera,
+  MapPin,
+  Building,
+  Eye,
+  XCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,6 +41,11 @@ interface ProfileData {
   businessName: string
 }
 
+interface StagedFileEntry {
+  file: File
+  previewUrl: string
+}
+
 export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCompletionModalProps) {
   const [profileData, setProfileData] = useState<ProfileData>({
     fullName: "",
@@ -40,6 +58,13 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
     proofOfAddressUrl: "",
     businessType: "",
     businessName: "",
+  })
+
+  const [stagedFiles, setStagedFiles] = useState<Record<string, StagedFileEntry | null>>({
+    aadharCard: null,
+    panCard: null,
+    photograph: null,
+    proofOfAddress: null,
   })
 
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false)
@@ -55,6 +80,82 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
   const panInputRef = useRef<HTMLInputElement>(null)
   const photographInputRef = useRef<HTMLInputElement>(null)
   const proofOfAddressInputRef = useRef<HTMLInputElement>(null)
+
+  // Define profile fields configuration
+  const profileFieldsConfig = [
+    {
+      icon: User,
+      label: "Full Name",
+      description: "As per Aadhar Card",
+      key: "fullName",
+    },
+    {
+      icon: Phone,
+      label: "Mobile Number",
+      description: "Verified mobile number",
+      key: "mobileNumber",
+    },
+    {
+      icon: Mail,
+      label: "Email",
+      description: "Enter your email address",
+      key: "email",
+    },
+    {
+      icon: Check,
+      label: "Email Verified",
+      description: "Verified email address",
+      key: "emailVerified",
+    },
+    {
+      icon: Building,
+      label: "Business Type",
+      description: "Your business entity type",
+      key: "businessType",
+    },
+    {
+      icon: Building,
+      label: "Business Name",
+      description: "Your business/trade name",
+      key: "businessName",
+    },
+    {
+      icon: Camera,
+      label: "Photograph",
+      description: "Upload your photo",
+      type: "photograph",
+      ref: photographInputRef,
+      accept: ".jpg,.jpeg,.png",
+      uploadHint: "JPG, PNG up to 5MB",
+    },
+    {
+      icon: CreditCard,
+      label: "Aadhar Card",
+      description: "Upload Aadhar document",
+      type: "aadharCard",
+      ref: aadharInputRef,
+      accept: ".pdf,.jpg,.jpeg,.png",
+      uploadHint: "PDF, PNG, JPG up to 10MB",
+    },
+    {
+      icon: FileText,
+      label: "PAN Card",
+      description: "Upload PAN document",
+      type: "panCard",
+      ref: panInputRef,
+      accept: ".pdf,.jpg,.jpeg,.png",
+      uploadHint: "PDF, PNG, JPG up to 10MB",
+    },
+    {
+      icon: MapPin,
+      label: "Proof of Address",
+      description: "Upload address proof document",
+      type: "proofOfAddress",
+      ref: proofOfAddressInputRef,
+      accept: ".pdf,.jpg,.jpeg,.png",
+      uploadHint: "Utility Bill, Bank Statement, Rent Agreement (PDF, PNG, JPG up to 10MB)",
+    },
+  ] as const // Use 'as const' for type safety
 
   useEffect(() => {
     if (isOpen) {
@@ -73,6 +174,13 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
             businessType: data.user.businessType,
             businessName: data.user.businessName,
           })
+          // Clear any previously staged files when modal opens
+          setStagedFiles({
+            aadharCard: null,
+            panCard: null,
+            photograph: null,
+            proofOfAddress: null,
+          })
         } catch (error) {
           console.error("Failed to fetch initial profile data:", error)
         }
@@ -81,21 +189,36 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
     }
   }, [isOpen])
 
+  // Cleanup for object URLs when component unmounts or staged files are replaced/removed
+  useEffect(() => {
+    return () => {
+      Object.values(stagedFiles).forEach((stagedFile) => {
+        if (stagedFile && stagedFile.previewUrl) {
+          URL.revokeObjectURL(stagedFile.previewUrl)
+        }
+      })
+    }
+  }, [stagedFiles]) // Re-run cleanup if stagedFiles object reference changes
+
   const calculateProgress = () => {
     let completed = 0
-    const total = 10 // Updated total to include businessType and businessName
+    const total = profileFieldsConfig.length
 
-    if (profileData.fullName.trim()) completed++
-    if (profileData.mobileNumber.trim()) completed++
-    if (profileData.email.trim()) completed++
-    if (profileData.emailVerified) completed++
-    if (profileData.aadharCardUrl.trim()) completed++
-    if (profileData.panCardUrl.trim()) completed++
-    if (profileData.photographUrl.trim()) completed++
-    if (profileData.proofOfAddressUrl.trim()) completed++
-    if (profileData.businessType.trim()) completed++
-    if (profileData.businessName.trim()) completed++
-
+    profileFieldsConfig.forEach((field) => {
+      if ("key" in field) {
+        // Text fields
+        if (field.key === "emailVerified") {
+          if (profileData.emailVerified) completed++
+        } else if (profileData[field.key as keyof ProfileData]?.toString().trim()) {
+          completed++
+        }
+      } else if ("type" in field) {
+        // Document fields
+        if (profileData[`${field.type}Url` as keyof ProfileData]?.toString().trim() || stagedFiles[field.type]) {
+          completed++
+        }
+      }
+    })
     return Math.round((completed / total) * 100)
   }
 
@@ -107,10 +230,6 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
     setIsVerifyingEmail(true)
 
     try {
-      // In a real application, you would send an OTP or verification link
-      // For demo purposes, we'll simulate a 2-second verification process
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
       // Call the server action to verify and save email
       const result = await verifyEmail(profileData.email)
 
@@ -128,106 +247,79 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
     }
   }
 
-  const handleFileUpload = async (
-    type: "aadharCard" | "panCard" | "photograph" | "proofOfAddress",
-    file: File | null,
-  ) => {
+  const handleFileUpload = (type: "aadharCard" | "panCard" | "photograph" | "proofOfAddress", file: File | null) => {
     if (!file) return
 
-    setUploadingStates((prev) => ({ ...prev, [type]: true }))
+    // Revoke previous URL if exists for this type
+    if (stagedFiles[type]?.previewUrl) {
+      URL.revokeObjectURL(stagedFiles[type]?.previewUrl!)
+    }
 
-    try {
-      const result = await uploadDocument(type, file)
-      if (result.success) {
-        setProfileData((prev) => ({ ...prev, [`${type}Url`]: result.fileUrl }))
-        if (onUpdate) onUpdate()
-      } else {
-        console.error("Upload failed:", result.message)
-      }
-    } catch (error) {
-      console.error("Upload error:", error)
-    } finally {
-      setUploadingStates((prev) => ({ ...prev, [type]: false }))
+    const previewUrl = URL.createObjectURL(file)
+    setStagedFiles((prev) => ({
+      ...prev,
+      [type]: { file, previewUrl },
+    }))
+  }
+
+  const handleRemoveStagedFile = (type: "aadharCard" | "panCard" | "photograph" | "proofOfAddress") => {
+    if (stagedFiles[type]?.previewUrl) {
+      URL.revokeObjectURL(stagedFiles[type]?.previewUrl!)
+    }
+    setStagedFiles((prev) => ({ ...prev, [type]: null }))
+    // Clear the file input value as well
+    const ref = profileFieldsConfig.find((f) => "type" in f && f.type === type)?.ref
+    if (ref?.current) {
+      ref.current.value = ""
     }
   }
 
   const handleSaveProfile = async () => {
     setIsSaving(true)
-    // Update text fields
-    await updateProfileCompletion("fullName", profileData.fullName)
-    await updateProfileCompletion("mobileNo", profileData.mobileNumber)
-    await updateProfileCompletion("email", profileData.email)
-    await updateProfileCompletion("businessName", profileData.businessName)
+    let currentProfileData = { ...profileData } // Use a mutable copy
+
+    // Update text fields first
+    await updateProfileCompletion("fullName", currentProfileData.fullName)
+    await updateProfileCompletion("mobileNo", currentProfileData.mobileNumber)
+    await updateProfileCompletion("email", currentProfileData.email)
+    await updateProfileCompletion("businessName", currentProfileData.businessName)
+
+    // Upload staged documents
+    for (const type of ["aadharCard", "panCard", "photograph", "proofOfAddress"] as const) {
+      const stagedFileEntry = stagedFiles[type]
+      if (stagedFileEntry && stagedFileEntry.file) {
+        setUploadingStates((prev) => ({ ...prev, [type]: true }))
+        try {
+          const formData = new FormData()
+          formData.append("file", stagedFileEntry.file)
+          formData.append("documentType", type)
+
+          const result = await uploadDocument(formData) // This action updates the User model directly
+          if (result.success) {
+            currentProfileData = { ...currentProfileData, [`${type}Url`]: result.fileUrl }
+            setStagedFiles((prev) => ({ ...prev, [type]: null })) // Clear staged file after successful upload
+            URL.revokeObjectURL(stagedFileEntry.previewUrl) // Revoke the temporary URL
+          } else {
+            console.error(`Upload of ${type} failed:`, result.message)
+            // Optionally, keep the staged file and show an error to the user
+          }
+        } catch (error) {
+          console.error(`Upload error for ${type}:`, error)
+        } finally {
+          setUploadingStates((prev) => ({ ...prev, [type]: false }))
+        }
+      }
+    }
+
+    // After all uploads and text updates, update the local profileData state
+    setProfileData(currentProfileData)
 
     setIsSaving(false)
-    if (onUpdate) onUpdate()
+    if (onUpdate) onUpdate() // Notify parent to re-fetch dashboard data if needed
     onClose()
   }
 
   const progress = calculateProgress()
-
-  const profileFields = [
-    {
-      icon: User,
-      label: "Full Name",
-      completed: !!profileData.fullName.trim(),
-      description: "As per Aadhar Card",
-    },
-    {
-      icon: Phone,
-      label: "Mobile Number",
-      completed: !!profileData.mobileNumber.trim(),
-      description: "Verified mobile number",
-    },
-    {
-      icon: Mail,
-      label: "Email",
-      completed: !!profileData.email.trim(),
-      description: "Enter your email address",
-    },
-    {
-      icon: Check,
-      label: "Email Verified",
-      completed: profileData.emailVerified,
-      description: "Verified email address",
-    },
-    {
-      icon: Building,
-      label: "Business Type",
-      completed: !!profileData.businessType.trim(),
-      description: "Your business entity type",
-    },
-    {
-      icon: Building,
-      label: "Business Name",
-      completed: !!profileData.businessName.trim(),
-      description: "Your business/trade name",
-    },
-    {
-      icon: Camera,
-      label: "Photograph",
-      completed: !!profileData.photographUrl.trim(),
-      description: "Upload your photo",
-    },
-    {
-      icon: CreditCard,
-      label: "Aadhar Card",
-      completed: !!profileData.aadharCardUrl.trim(),
-      description: "Upload Aadhar document",
-    },
-    {
-      icon: FileText,
-      label: "PAN Card",
-      completed: !!profileData.panCardUrl.trim(),
-      description: "Upload PAN document",
-    },
-    {
-      icon: MapPin,
-      label: "Proof of Address",
-      completed: !!profileData.proofOfAddressUrl.trim(),
-      description: "Upload address proof document",
-    },
-  ]
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -251,24 +343,46 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
             </div>
             <Progress value={progress} className="h-3" />
             <p className="text-xs text-primary-foreground mt-2">
-              {profileFields.filter((f) => !f.completed).length} fields remaining
+              {
+                profileFieldsConfig.filter((f) => {
+                  if ("key" in f) {
+                    if (f.key === "emailVerified") return !profileData.emailVerified
+                    return !profileData[f.key as keyof ProfileData]?.toString().trim()
+                  } else if ("type" in f) {
+                    return !(profileData[`${f.type}Url` as keyof ProfileData]?.toString().trim() || stagedFiles[f.type])
+                  }
+                  return false
+                }).length
+              }{" "}
+              fields remaining
             </p>
           </div>
 
           {/* Progress Checklist */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {profileFields.map((field, index) => {
+            {profileFieldsConfig.map((field, index) => {
               const Icon = field.icon
+              let isCompleted = false
+              if ("key" in field) {
+                isCompleted =
+                  field.key === "emailVerified"
+                    ? profileData.emailVerified
+                    : !!profileData[field.key as keyof ProfileData]?.toString().trim()
+              } else if ("type" in field) {
+                isCompleted =
+                  !!profileData[`${field.type}Url` as keyof ProfileData]?.toString().trim() || !!stagedFiles[field.type]
+              }
+
               return (
                 <div
                   key={index}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    field.completed ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
+                    isCompleted ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
                   }`}
                 >
                   <div
                     className={`p-2 rounded-full ${
-                      field.completed ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
+                      isCompleted ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -363,147 +477,90 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
 
             {/* Document Uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Photograph Upload */}
-              <div className="space-y-2">
-                <Label>Photograph</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    ref={photographInputRef}
-                    type="file"
-                    accept=".jpg,.jpeg,.png"
-                    onChange={(e) => handleFileUpload("photograph", e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                  {profileData.photographUrl ? (
-                    <div className="flex items-center justify-center gap-2 text-green-600">
-                      <Check className="h-5 w-5" />
-                      <span className="text-sm font-medium">Uploaded</span>
+              {profileFieldsConfig
+                .filter((f) => "type" in f)
+                .map((field) => (
+                  <div key={field.type} className="space-y-2">
+                    <Label>{field.label}</Label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                      <input
+                        ref={field.ref}
+                        type="file"
+                        accept={field.accept}
+                        onChange={(e) => handleFileUpload(field.type, e.target.files?.[0] || null)}
+                        className="hidden"
+                        disabled={uploadingStates[field.type]}
+                      />
+                      {stagedFiles[field.type] ? (
+                        // Staged file exists (not yet uploaded to Cloudinary)
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            {stagedFiles[field.type]?.file?.name}
+                          </span>
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto text-primary text-xs"
+                              onClick={() => window.open(stagedFiles[field.type]?.previewUrl!, "_blank")}
+                            >
+                              <Eye className="h-3 w-3 mr-1" /> Preview
+                            </Button>
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto text-red-600 text-xs"
+                              onClick={() => handleRemoveStagedFile(field.type)}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" /> Remove
+                            </Button>
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto text-blue-600 text-xs"
+                              onClick={() => field.ref.current?.click()}
+                            >
+                              <Upload className="h-3 w-3 mr-1" /> Re-upload
+                            </Button>
+                          </div>
+                        </div>
+                      ) : profileData[`${field.type}Url` as keyof ProfileData] ? (
+                        // Already uploaded to Cloudinary
+                        <div className="flex flex-col items-center justify-center gap-2 text-green-600">
+                          <Check className="h-5 w-5" />
+                          <span className="text-sm font-medium">Uploaded</span>
+                          <Button
+                            variant="link"
+                            className="p-0 h-auto text-primary text-xs"
+                            onClick={() => window.open(profileData[`${field.type}Url` as keyof ProfileData]!, "_blank")}
+                          >
+                            <Eye className="h-3 w-3 mr-1" /> View
+                          </Button>
+                          <Button
+                            variant="link"
+                            className="p-0 h-auto text-blue-600 text-xs mt-1"
+                            onClick={() => field.ref.current?.click()}
+                          >
+                            <Upload className="h-3 w-3 mr-1" /> Replace
+                          </Button>
+                        </div>
+                      ) : (
+                        // No file staged or uploaded yet
+                        <div className="space-y-2">
+                          <field.icon className="h-8 w-8 text-gray-400 mx-auto" />
+                          <div className="text-sm text-gray-600">
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto text-primary"
+                              onClick={() => field.ref.current?.click()}
+                              disabled={uploadingStates[field.type]}
+                            >
+                              {uploadingStates[field.type] ? "Uploading..." : "Click to upload"}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-gray-500">{field.uploadHint}</p>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Camera className="h-8 w-8 text-gray-400 mx-auto" />
-                      <div className="text-sm text-gray-600">
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-primary"
-                          onClick={() => photographInputRef.current?.click()}
-                          disabled={uploadingStates.photograph}
-                        >
-                          {uploadingStates.photograph ? "Uploading..." : "Upload Photo"}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">JPG, PNG up to 5MB</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Aadhar Card Upload */}
-              <div className="space-y-2">
-                <Label>Aadhar Card</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    ref={aadharInputRef}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => handleFileUpload("aadharCard", e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                  {profileData.aadharCardUrl ? (
-                    <div className="flex items-center justify-center gap-2 text-green-600">
-                      <Check className="h-5 w-5" />
-                      <span className="text-sm font-medium">Uploaded</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto" />
-                      <div className="text-sm text-gray-600">
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-primary"
-                          onClick={() => aadharInputRef.current?.click()}
-                          disabled={uploadingStates.aadharCard}
-                        >
-                          {uploadingStates.aadharCard ? "Uploading..." : "Click to upload"}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* PAN Card Upload */}
-              <div className="space-y-2">
-                <Label>PAN Card</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    ref={panInputRef}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => handleFileUpload("panCard", e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                  {profileData.panCardUrl ? (
-                    <div className="flex items-center justify-center gap-2 text-green-600">
-                      <Check className="h-5 w-5" />
-                      <span className="text-sm font-medium">Uploaded</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto" />
-                      <div className="text-sm text-gray-600">
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-primary"
-                          onClick={() => panInputRef.current?.click()}
-                          disabled={uploadingStates.panCard}
-                        >
-                          {uploadingStates.panCard ? "Uploading..." : "Click to upload"}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Proof of Address Upload */}
-              <div className="space-y-2">
-                <Label>Proof of Address</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    ref={proofOfAddressInputRef}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => handleFileUpload("proofOfAddress", e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                  {profileData.proofOfAddressUrl ? (
-                    <div className="flex items-center justify-center gap-2 text-green-600">
-                      <Check className="h-5 w-5" />
-                      <span className="text-sm font-medium">Uploaded</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <MapPin className="h-8 w-8 text-gray-400 mx-auto" />
-                      <div className="text-sm text-gray-600">
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-primary"
-                          onClick={() => proofOfAddressInputRef.current?.click()}
-                          disabled={uploadingStates.proofOfAddress}
-                        >
-                          {uploadingStates.proofOfAddress ? "Uploading..." : "Click to upload"}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        Utility Bill, Bank Statement, Rent Agreement (PDF, PNG, JPG up to 10MB)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                ))}
             </div>
 
             {/* Proof of Address Information */}
@@ -523,7 +580,7 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
 
           {/* Action Buttons */}
           <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Save & Continue Later
             </Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={handleSaveProfile} disabled={isSaving}>

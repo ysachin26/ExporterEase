@@ -4,6 +4,7 @@ interface IDocument {
   name: string
   uploadedAt?: Date
   status: "pending" | "uploaded" | "verified" | "rejected"
+  url?: string // Added for Cloudinary URL
 }
 
 interface IRegistrationStep {
@@ -41,6 +42,7 @@ const DocumentSchema: Schema = new Schema({
   name: { type: String, required: true },
   uploadedAt: { type: Date },
   status: { type: String, enum: ["pending", "uploaded", "verified", "rejected"], default: "pending" },
+  url: { type: String }, // Added for Cloudinary URL
 })
 
 const RegistrationStepSchema: Schema = new Schema({

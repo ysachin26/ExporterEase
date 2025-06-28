@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import {
   ArrowLeft,
   Check,
@@ -15,6 +17,8 @@ import {
   Users,
   Award,
   Clock,
+  Eye,
+  XCircle,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,12 +27,16 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData } from "@/app/actions" // Import getDashboardData
+import { getDashboardData, uploadDocument } from "@/app/actions"
+import { updateProfileCompletion } from "@/app/actions" // Import updateProfileCompletion
+import { useRouter } from "next/navigation" // Import useRouter for navigation
 
-interface DocumentUpload {
+interface DocumentUploadState {
   name: string
   file: File | null
   uploaded: boolean
+  url?: string // To store the URL from DB
+  status?: "pending" | "uploaded" | "verified" | "rejected" // Status from DB
 }
 
 interface BankDetails {
@@ -37,6 +45,10 @@ interface BankDetails {
   branchName: string
   ifscCode: string
   cancelledCheque: File | null
+  cancelledChequeUrl?: string // To store the URL from DB
+  cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  tempCancelledCheque: File | null
+  tempCancelledChequeUrl?: string
 }
 
 interface BusinessDocuments {
@@ -44,18 +56,45 @@ interface BusinessDocuments {
   partnershipDeed: File | null
   certificateOfIncorporation: File | null
   moaAoa: File | null
+  authorizationLetterUrl?: string
+  partnershipDeedUrl?: string
+  certificateOfIncorporationUrl?: string
+  moaAoaUrl?: string
+  authorizationLetterStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  partnershipDeedStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  certificateOfIncorporationStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  moaAoaStatus?: "pending" | "uploaded" | "verified" | "rejected"
+}
+
+interface ProfileData {
+  fullName: string
+  email: string
+  mobile: string
+  panCardUrl: string
+  aadharCardUrl: string
+  photographUrl: string
+  proofOfAddressUrl: string
+  businessType: string // Added businessType to ProfileData
+  businessName: string // Added businessName to ProfileData
+}
+
+interface StagedFileEntry {
+  file: File
+  previewUrl: string
 }
 
 export default function GSTRegistration() {
   const [premiseType, setPremiseType] = useState<"rented" | "owned" | "">("")
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<ProfileData>({
     fullName: "",
     email: "",
     mobile: "",
-    panCardUploaded: false,
-    aadharCardUploaded: false,
-    photographUploaded: false,
-    proofOfAddressUploaded: false,
+    panCardUrl: "",
+    aadharCardUrl: "",
+    photographUrl: "",
+    proofOfAddressUrl: "",
+    businessType: "",
+    businessName: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
     natureOfBusiness: "",
@@ -67,17 +106,72 @@ export default function GSTRegistration() {
     branchName: "",
     ifscCode: "",
     cancelledCheque: null,
+    cancelledChequeUrl: "",
+    cancelledChequeStatus: "pending",
+    tempCancelledCheque: null,
+    tempCancelledChequeUrl: "",
   })
+  const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [businessDocuments, setBusinessDocuments] = useState<BusinessDocuments>({
     authorizationLetter: null,
     partnershipDeed: null,
     certificateOfIncorporation: null,
     moaAoa: null,
+    authorizationLetterUrl: "",
+    partnershipDeedUrl: "",
+    certificateOfIncorporationUrl: "",
+    moaAoaUrl: "",
+    authorizationLetterStatus: "pending",
+    partnershipDeedStatus: "pending",
+    certificateOfIncorporationStatus: "pending",
+    moaAoaStatus: "pending",
   })
-  const [documents, setDocuments] = useState<Record<string, DocumentUpload>>({})
   const [businessType, setBusinessType] = useState<"individual" | "partnership" | "llp" | "pvt_ltd" | "">("")
 
-  // Fetch profile data on component mount
+  const [stagedFiles, setStagedFiles] = useState<Record<string, StagedFileEntry | null>>({
+    rentAgreement: null,
+    electricityBill: null,
+    noc: null,
+    propertyProof: null,
+    electricityBillOwned: null,
+    cancelledCheque: null,
+    authorizationLetter: null,
+    partnershipDeed: null,
+    certificateOfIncorporation: null,
+    moaAoa: null,
+  })
+
+  const [uploadingStates, setUploadingStates] = useState<Record<string, boolean>>({
+    rentAgreement: false,
+    electricityBill: false,
+    noc: false,
+    propertyProof: false,
+    electricityBillOwned: false,
+    cancelledCheque: false,
+    authorizationLetter: false,
+    partnershipDeed: false,
+    certificateOfIncorporation: false,
+    moaAoa: false,
+  })
+
+  const [isSaving, setIsSaving] = useState(false) // Declare isSaving state
+  const [onUpdate, setOnUpdate] = useState(() => () => {}) // Declare onUpdate state
+
+  // Refs for file inputs
+  const rentAgreementRef = useRef<HTMLInputElement>(null)
+  const electricityBillRef = useRef<HTMLInputElement>(null)
+  const nocRef = useRef<HTMLInputElement>(null)
+  const propertyProofRef = useRef<HTMLInputElement>(null)
+  const electricityBillOwnedRef = useRef<HTMLInputElement>(null)
+  const cancelledChequeRef = useRef<HTMLInputElement>(null)
+  const authorizationLetterRef = useRef<HTMLInputElement>(null)
+  const partnershipDeedRef = useRef<HTMLInputElement>(null)
+  const certificateOfIncorporationRef = useRef<HTMLInputElement>(null)
+  const moaAoaRef = useRef<HTMLInputElement>(null)
+
+  const router = useRouter() // Initialize router
+
+  // Fetch profile data and registration documents on component mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -107,23 +201,79 @@ export default function GSTRegistration() {
           fullName: data.user.fullName,
           email: data.user.email,
           mobile: data.user.mobileNo,
-          panCardUploaded: !!data.user.panCardUrl,
-          aadharCardUploaded: !!data.user.aadharCardUrl,
-          photographUploaded: !!data.user.photographUrl,
-          proofOfAddressUploaded: !!data.user.proofOfAddressUrl,
+          panCardUrl: data.user.panCardUrl,
+          aadharCardUrl: data.user.aadharCardUrl,
+          photographUrl: data.user.photographUrl,
+          proofOfAddressUrl: data.user.proofOfAddressUrl,
+          businessType: data.user.businessType, // Set businessType from fetched data
+          businessName: data.user.businessName, // Set businessName from fetched data
         })
 
         // Pre-fill business name from profile
-        setBusinessDetails({
-          natureOfBusiness: "",
+        setBusinessDetails((prev) => ({
+          ...prev,
           businessName: data.user.businessName || "",
-        })
+        }))
+
+        // Pre-fill registration-specific documents from dashboard data
+        const gstStep = data.registrationSteps.find((step) => step.id === 3) // Assuming GST is step 3
+        if (gstStep) {
+          const newDocumentsState: Record<string, DocumentUploadState> = {}
+          const newBusinessDocumentsState: BusinessDocuments = { ...businessDocuments }
+          const newBankDetailsState: BankDetails = { ...bankDetails }
+
+          gstStep.documents.forEach((doc) => {
+            if (doc.name === "cancelledCheque") {
+              newBankDetailsState.cancelledChequeUrl = doc.url
+              newBankDetailsState.cancelledCheque = doc.url ? ({} as File) : null // Mark as uploaded if URL exists
+              newBankDetailsState.cancelledChequeStatus = doc.status
+            } else if (
+              doc.name === "authorizationLetter" ||
+              doc.name === "partnershipDeed" ||
+              doc.name === "certificateOfIncorporation" ||
+              doc.name === "moaAoa"
+            ) {
+              ;(newBusinessDocumentsState as any)[`${doc.name}Url`] = doc.url
+              ;(newBusinessDocumentsState as any)[doc.name] = doc.url ? ({} as File) : null
+              ;(newBusinessDocumentsState as any)[`${doc.name}Status`] = doc.status
+            } else {
+              newDocumentsState[doc.name] = {
+                name: doc.name,
+                file: doc.url ? ({} as File) : null,
+                uploaded: !!doc.url,
+                url: doc.url,
+                status: doc.status,
+              }
+            }
+          })
+          setDocuments(newDocumentsState)
+          setBusinessDocuments(newBusinessDocumentsState)
+          setBankDetails(newBankDetailsState)
+
+          // Determine premise type if documents are uploaded
+          if (gstStep.documents.some((d) => d.name === "rentAgreement" || d.name === "noc")) {
+            setPremiseType("rented")
+          } else if (gstStep.documents.some((d) => d.name === "propertyProof")) {
+            setPremiseType("owned")
+          }
+        }
       } catch (error) {
         console.error("Failed to fetch initial GST registration data:", error)
       }
     }
     fetchInitialData()
   }, [])
+
+  // Cleanup for object URLs when component unmounts or staged files are replaced/removed
+  useEffect(() => {
+    return () => {
+      Object.values(stagedFiles).forEach((stagedFile) => {
+        if (stagedFile && stagedFile.previewUrl) {
+          URL.revokeObjectURL(stagedFile.previewUrl)
+        }
+      })
+    }
+  }, [stagedFiles])
 
   const calculateProgress = () => {
     let completed = 0
@@ -134,18 +284,14 @@ export default function GSTRegistration() {
     if (profileData.fullName.trim()) completed++
     if (profileData.mobile.trim()) completed++
     if (profileData.email.trim()) completed++
-    if (profileData.panCardUploaded) completed++
-    if (profileData.aadharCardUploaded) completed++
-    if (profileData.photographUploaded) completed++
-    if (profileData.proofOfAddressUploaded) completed++
+    if (profileData.panCardUrl.trim()) completed++
+    if (profileData.aadharCardUrl.trim()) completed++
+    if (profileData.photographUrl.trim()) completed++
+    if (profileData.proofOfAddressUrl.trim()) completed++
 
-    // Business type selection
-    // Remove this line from calculateProgress():
-    // total += 1
-    // if (businessType) completed++
-
-    // Business details (only count if business type is selected)
+    // Business details
     if (businessType) {
+      // Only count if business type is determined
       total += 2
       if (businessDetails.natureOfBusiness.trim()) completed++
       if (businessDetails.businessName.trim()) completed++
@@ -154,30 +300,54 @@ export default function GSTRegistration() {
     // Business entity documents (based on business type)
     if (businessType) {
       total += 1 // Authorization letter (required for all)
-      if (businessDocuments.authorizationLetter) completed++
+      if (
+        (businessDocuments.authorizationLetterUrl && businessDocuments.authorizationLetterStatus !== "rejected") ||
+        stagedFiles.authorizationLetter
+      )
+        completed++
 
       if (businessType === "partnership" || businessType === "llp") {
         total += 1 // Partnership deed/LLP agreement
-        if (businessDocuments.partnershipDeed) completed++
+        if (
+          (businessDocuments.partnershipDeedUrl && businessDocuments.partnershipDeedStatus !== "rejected") ||
+          stagedFiles.partnershipDeed
+        )
+          completed++
       }
 
       if (businessType === "pvt_ltd") {
         total += 2 // Certificate of incorporation + MOA & AOA
-        if (businessDocuments.certificateOfIncorporation) completed++
-        if (businessDocuments.moaAoa) completed++
+        if (
+          (businessDocuments.certificateOfIncorporationUrl &&
+            businessDocuments.certificateOfIncorporationStatus !== "rejected") ||
+          stagedFiles.certificateOfIncorporation
+        )
+          completed++
+        if ((businessDocuments.moaAoaUrl && businessDocuments.moaAoaStatus !== "rejected") || stagedFiles.moaAoa)
+          completed++
       }
     }
 
     // Premise documents (add to total based on type)
     if (premiseType === "rented") {
       total += 3
-      if (documents.rentAgreement?.uploaded) completed++
-      if (documents.electricityBill?.uploaded) completed++
-      if (documents.noc?.uploaded) completed++
+      if ((documents.rentAgreement?.url && documents.rentAgreement?.status !== "rejected") || stagedFiles.rentAgreement)
+        completed++
+      if (
+        (documents.electricityBill?.url && documents.electricityBill?.status !== "rejected") ||
+        stagedFiles.electricityBill
+      )
+        completed++
+      if ((documents.noc?.url && documents.noc?.status !== "rejected") || stagedFiles.noc) completed++
     } else if (premiseType === "owned") {
       total += 2
-      if (documents.propertyProof?.uploaded) completed++
-      if (documents.electricityBillOwned?.uploaded) completed++
+      if ((documents.propertyProof?.url && documents.propertyProof?.status !== "rejected") || stagedFiles.propertyProof)
+        completed++
+      if (
+        (documents.electricityBillOwned?.url && documents.electricityBillOwned?.status !== "rejected") ||
+        stagedFiles.electricityBillOwned
+      )
+        completed++
     }
 
     // Bank Details (optional, so not added to total unless filled)
@@ -186,45 +356,464 @@ export default function GSTRegistration() {
       bankDetails.bankName.trim() ||
       bankDetails.branchName.trim() ||
       bankDetails.ifscCode.trim() ||
-      bankDetails.cancelledCheque
+      bankDetails.cancelledChequeUrl ||
+      stagedFiles.cancelledCheque
     ) {
       total += 5 // account, bank, branch, ifsc, cheque
       if (bankDetails.accountNumber.trim()) completed++
       if (bankDetails.bankName.trim()) completed++
       if (bankDetails.branchName.trim()) completed++
       if (bankDetails.ifscCode.trim()) completed++
-      if (bankDetails.cancelledCheque) completed++
+      if (
+        (bankDetails.cancelledChequeUrl && bankDetails.cancelledChequeStatus !== "rejected") ||
+        stagedFiles.cancelledCheque
+      )
+        completed++
     }
 
     return total === 0 ? 0 : Math.round((completed / total) * 100)
   }
 
-  const handleDocumentUpload = (docType: string, file: File | null) => {
-    setDocuments((prev) => ({
+  const handleStageFileUpload = (docType: string, file: File | null) => {
+    if (!file) return
+
+    // Revoke previous URL if exists for this type
+    if (stagedFiles[docType]?.previewUrl) {
+      URL.revokeObjectURL(stagedFiles[docType]?.previewUrl!)
+    }
+
+    const previewUrl = URL.createObjectURL(file)
+    setStagedFiles((prev) => ({
       ...prev,
-      [docType]: {
-        name: file?.name || "",
-        file: file,
-        uploaded: !!file,
-      },
+      [docType]: { file, previewUrl },
     }))
   }
 
-  const handleBankDocumentUpload = (file: File | null) => {
+  const handleRemoveStagedFile = (docType: string, ref: React.RefObject<HTMLInputElement>) => {
+    if (stagedFiles[docType]?.previewUrl) {
+      URL.revokeObjectURL(stagedFiles[docType]?.previewUrl!)
+    }
+    setStagedFiles((prev) => ({ ...prev, [docType]: null }))
+    if (ref.current) {
+      ref.current.value = "" // Clear the file input
+    }
+  }
+
+  const handleBankDocumentSelect = (file: File | null) => {
+    if (!file) return
+
+    if (bankDetails.tempCancelledChequeUrl) {
+      URL.revokeObjectURL(bankDetails.tempCancelledChequeUrl)
+    }
+
     setBankDetails((prev) => ({
       ...prev,
       cancelledCheque: file,
+      tempCancelledCheque: file,
+      tempCancelledChequeUrl: URL.createObjectURL(file),
+      cancelledChequeStatus: "pending",
     }))
   }
 
-  const handleBusinessDocumentUpload = (docType: keyof BusinessDocuments, file: File | null) => {
-    setBusinessDocuments((prev) => ({
-      ...prev,
-      [docType]: file,
-    }))
+  const handleSubmit = async () => {
+    // First, update text fields (if any are directly editable on this page)
+    // For GST, only natureOfBusiness and businessName are directly editable
+    await updateProfileCompletion("natureOfBusiness", businessDetails.natureOfBusiness)
+    await updateProfileCompletion("businessName", businessDetails.businessName)
+    // You might also want to save bank details if they are considered part of the "profile"
+    // For now, assuming bank details are handled as part of document uploads or a separate action.
+
+    // Then, upload all staged files
+    const filesToUpload: { type: string; file: File }[] = []
+
+    // Collect files from `stagedFiles`
+    for (const key in stagedFiles) {
+      const stagedFileEntry = stagedFiles[key]
+      if (stagedFileEntry && stagedFileEntry.file) {
+        filesToUpload.push({ type: key, file: stagedFileEntry.file })
+      }
+    }
+
+    // Bank cancelled cheque
+    if (
+      bankDetails.tempCancelledCheque &&
+      (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
+    ) {
+      filesToUpload.push({ type: "cancelledCheque", file: bankDetails.tempCancelledCheque })
+    }
+
+    // Set uploading states
+    const newUploadingStates: Record<string, boolean> = {}
+    filesToUpload.forEach((f) => (newUploadingStates[f.type] = true))
+    setUploadingStates(newUploadingStates)
+    setIsSaving(true)
+
+    let allUploadsSuccessful = true
+    const updatedDocuments: Record<string, DocumentUploadState> = { ...documents }
+    const updatedBusinessDocuments: BusinessDocuments = { ...businessDocuments }
+    const updatedBankDetails: BankDetails = { ...bankDetails }
+
+    for (const { type, file } of filesToUpload) {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("documentType", type)
+      formData.append("stepId", "3") // GST Registration step ID
+
+      try {
+        const result = await uploadDocument(formData)
+        if (result.success) {
+          // Update the main state variables with the new URL and status
+          if (type === "cancelledCheque") {
+            updatedBankDetails.cancelledChequeUrl = result.fileUrl
+            updatedBankDetails.cancelledChequeStatus = "uploaded"
+            updatedBankDetails.tempCancelledCheque = null
+            updatedBankDetails.tempCancelledChequeUrl = null
+          } else if (
+            type === "authorizationLetter" ||
+            type === "partnershipDeed" ||
+            type === "certificateOfIncorporation" ||
+            type === "moaAoa"
+          ) {
+            ;(updatedBusinessDocuments as any)[`${type}Url`] = result.fileUrl
+            ;(updatedBusinessDocuments as any)[`${type}Status`] = "uploaded"
+          } else {
+            updatedDocuments[type] = {
+              name: file.name,
+              file: file,
+              uploaded: true,
+              url: result.fileUrl,
+              status: "uploaded",
+            }
+          }
+          // Clear the staged file after successful upload
+          handleRemoveStagedFile(
+            type,
+            (document.getElementById(type) as HTMLInputElement)?.files?.[0]
+              ? (document.getElementById(type) as HTMLInputElement)
+              : (null as any),
+          ) // Pass ref if available
+        } else {
+          console.error(`Upload of ${type} failed:`, result.message)
+          allUploadsSuccessful = false
+        }
+      } catch (error) {
+        console.error(`Upload error for ${type}:`, error)
+        allUploadsSuccessful = false
+      } finally {
+        setUploadingStates((prev) => ({ ...prev, [type]: false }))
+      }
+    }
+
+    setDocuments(updatedDocuments)
+    setBusinessDocuments(updatedBusinessDocuments)
+    setBankDetails(updatedBankDetails)
+    setIsSaving(false)
+
+    if (allUploadsSuccessful) {
+      // Proceed with final form submission logic or navigate
+      console.log("All documents uploaded and form submitted successfully!")
+      onUpdate() // Notify parent to re-fetch dashboard data
+      router.push("/dashboard/success") // Navigate to a success page or dashboard
+    } else {
+      console.error("Some uploads failed. Please check the console for details.")
+      // Show a general error message to the user
+    }
   }
 
   const progress = calculateProgress()
+
+  const getDocumentStatusDisplay = (status?: string) => {
+    switch (status) {
+      case "uploaded":
+      case "pending":
+        return (
+          <div className="flex items-center gap-1 text-amber-600 text-xs">
+            <Clock className="h-3 w-3" />
+            <span>Pending Verification</span>
+          </div>
+        )
+      case "verified":
+        return (
+          <div className="flex items-center gap-1 text-green-600 text-xs">
+            <Check className="h-3 w-3" />
+            <span>Verified</span>
+          </div>
+        )
+      case "rejected":
+        return (
+          <div className="flex items-center gap-1 text-red-600 text-xs">
+            <XCircle className="h-3 w-3" />
+            <span>Rejected, Re-upload required</span>
+          </div>
+        )
+      default:
+        return (
+          <div className="flex items-center gap-1 text-gray-500 text-xs">
+            <Clock className="h-3 w-3" />
+            <span>Not Uploaded</span>
+          </div>
+        )
+    }
+  }
+
+  const getDocumentUploadComponent = (
+    docKey: string,
+    label: string,
+    currentUrl: string | undefined,
+    currentStatus: "pending" | "uploaded" | "verified" | "rejected" | undefined,
+    inputRef: React.RefObject<HTMLInputElement>,
+    handleUpload: (docType: string, file: File | null) => void,
+    icon: React.ElementType,
+    hint: string,
+    accept: string,
+  ) => {
+    const stagedFile = stagedFiles[docKey]
+    const isUploading = uploadingStates[docKey]
+
+    const handleContainerClick = () => {
+      inputRef.current?.click()
+    }
+
+    const handleButtonClick = (e: React.MouseEvent) => {
+      e.stopPropagation() // Prevent event bubbling
+      inputRef.current?.click()
+    }
+
+    return (
+      <div className="space-y-2">
+        <Label>
+          {label} <span className="text-red-500">*</span>
+        </Label>
+        <div
+          className={`border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer`}
+          onClick={handleContainerClick}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            onChange={(e) => handleStageFileUpload(docKey, e.target.files?.[0] || null)}
+            className="hidden"
+            id={docKey}
+            disabled={isUploading}
+          />
+          {stagedFile ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{stagedFile.file.name}</span>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-primary text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(stagedFile.previewUrl, "_blank")
+                  }}
+                >
+                  <Eye className="h-3 w-3 mr-1" /> Preview
+                </Button>
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-red-600 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRemoveStagedFile(docKey, inputRef)
+                  }}
+                >
+                  <XCircle className="h-3 w-3 mr-1" /> Remove
+                </Button>
+                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs" onClick={handleButtonClick}>
+                  <Upload className="h-3 w-3 mr-1" /> Re-upload
+                </Button>
+              </div>
+            </div>
+          ) : currentUrl ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              {currentStatus === "rejected" ? (
+                <XCircle className="h-5 w-5 text-red-600" />
+              ) : (
+                <Check className="h-5 w-5 text-green-600" />
+              )}
+              <span
+                className={`text-sm font-medium ${currentStatus === "rejected" ? "text-red-600" : "text-green-600"}`}
+              >
+                {currentStatus === "rejected" ? "Rejected" : "Uploaded"}
+              </span>
+              {currentUrl && (
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-primary text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(currentUrl, "_blank")
+                  }}
+                >
+                  <Eye className="h-3 w-3 mr-1" /> View
+                </Button>
+              )}
+              {currentStatus === "rejected" && (
+                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
+                  <Upload className="h-3 w-3 mr-1" /> Re-upload
+                </Button>
+              )}
+              {currentStatus !== "rejected" && (
+                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
+                  <Upload className="h-3 w-3 mr-1" /> Replace
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {icon && <icon className="h-8 w-8 text-gray-400 mx-auto" />}
+              <div className="text-sm text-gray-600">
+                <span className="text-primary">{isUploading ? "Uploading..." : "Click to upload"}</span>
+              </div>
+              <p className="text-xs text-gray-500">{hint}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  interface DocumentUploadSectionProps {
+    docType: string
+    label: string
+    description: string
+    required?: boolean
+    currentDocState: {
+      name: string
+      file: File | null
+      uploaded: boolean
+      url?: string
+      status?: "pending" | "uploaded" | "verified" | "rejected"
+      tempFile?: File | null
+      tempUrl?: string
+    }
+    onFileSelect: (file: File | null) => void
+    colorClass: string
+  }
+
+  const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
+    docType,
+    label,
+    description,
+    required = false,
+    currentDocState,
+    onFileSelect,
+    colorClass,
+  }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] || null
+      onFileSelect(file)
+    }
+
+    const handleContainerClick = () => {
+      fileInputRef.current?.click()
+    }
+
+    const handleButtonClick = (e: React.MouseEvent) => {
+      e.stopPropagation() // Prevent event bubbling
+      fileInputRef.current?.click()
+    }
+
+    return (
+      <div className={`space-y-4 p-4 bg-${colorClass}-50 rounded-lg border border-${colorClass}-200`}>
+        <h4 className={`font-medium text-${colorClass}-900`}>
+          {label} {required && <span className="text-red-500">*</span>}
+        </h4>
+        <p className="text-sm text-gray-500">{description}</p>
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer"
+          onClick={handleContainerClick}
+        >
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={handleFileChange}
+            ref={fileInputRef}
+          />
+          {currentDocState.tempUrl ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{currentDocState.tempFile?.name}</span>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-primary text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(currentDocState.tempUrl, "_blank")
+                  }}
+                >
+                  <Eye className="h-3 w-3 mr-1" /> Preview
+                </Button>
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-red-600 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onFileSelect(null)
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = ""
+                    }
+                  }}
+                >
+                  <XCircle className="h-3 w-3 mr-1" /> Remove
+                </Button>
+              </div>
+            </div>
+          ) : currentDocState.url ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              {currentDocState.status === "rejected" ? (
+                <XCircle className="h-5 w-5 text-red-600" />
+              ) : (
+                <Check className="h-5 w-5 text-green-600" />
+              )}
+              <span
+                className={`text-sm font-medium ${
+                  currentDocState.status === "rejected" ? "text-red-600" : "text-green-600"
+                }`}
+              >
+                {currentDocState.status === "rejected" ? "Rejected" : "Uploaded"}
+              </span>
+              {currentDocState.url && (
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-primary text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(currentDocState.url, "_blank")
+                  }}
+                >
+                  <Eye className="h-3 w-3 mr-1" /> View
+                </Button>
+              )}
+              {currentDocState.status === "rejected" && (
+                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
+                  <Upload className="h-3 w-3 mr-1" /> Re-upload
+                </Button>
+              )}
+              {currentDocState.status !== "rejected" && (
+                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
+                  <Upload className="h-3 w-3 mr-1" /> Replace
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+              <div className="text-sm text-gray-600">
+                <span className="text-primary">Click to upload</span>
+              </div>
+              <p className="text-xs text-gray-500">Supported formats: .pdf, .jpg, .jpeg, .png</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -302,24 +891,24 @@ export default function GSTRegistration() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               {[
-                { key: "panCardUploaded", label: "PAN Card", icon: FileText, completed: profileData.panCardUploaded },
+                { key: "panCardUrl", label: "PAN Card", icon: FileText, completed: !!profileData.panCardUrl },
                 {
-                  key: "aadharCardUploaded",
+                  key: "aadharCardUrl",
                   label: "Aadhaar Card",
                   icon: FileText,
-                  completed: profileData.aadharCardUploaded,
+                  completed: !!profileData.aadharCardUrl,
                 },
                 {
-                  key: "photographUploaded",
+                  key: "photographUrl",
                   label: "Photograph",
                   icon: User,
-                  completed: profileData.photographUploaded,
+                  completed: !!profileData.photographUrl,
                 },
                 {
-                  key: "proofOfAddressUploaded",
+                  key: "proofOfAddressUrl",
                   label: "Proof of Address",
                   icon: MapPin,
-                  completed: profileData.proofOfAddressUploaded,
+                  completed: !!profileData.proofOfAddressUrl,
                 },
               ].map((doc) => (
                 <div key={doc.key} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
@@ -429,91 +1018,40 @@ export default function GSTRegistration() {
             {/* Authorization Letter - Required for all types */}
             <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
               <h4 className="font-medium text-indigo-900">📋 Authorization Documents:</h4>
-              <div className="space-y-2">
-                <Label>
-                  Authorization Letter / Board Resolution <span className="text-red-500">*</span>
-                </Label>
-                <div className="border-2 border-dashed border-indigo-300 rounded-lg p-4 text-center hover:border-indigo-400 transition-colors">
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => handleBusinessDocumentUpload("authorizationLetter", e.target.files?.[0] || null)}
-                    className="hidden"
-                    id="authorizationLetter"
-                  />
-                  {businessDocuments.authorizationLetter ? (
-                    <div className="flex items-center justify-center gap-2 text-green-600">
-                      <Check className="h-5 w-5" />
-                      <span className="text-sm font-medium">{businessDocuments.authorizationLetter.name}</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Shield className="h-8 w-8 text-indigo-400 mx-auto" />
-                      <div className="text-sm text-gray-600">
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-indigo-600"
-                          onClick={() => document.getElementById("authorizationLetter")?.click()}
-                        >
-                          Click to upload
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {businessType === "individual"
-                          ? "Self-declaration letter"
-                          : businessType === "partnership"
-                            ? "Authorization from partners"
-                            : businessType === "llp"
-                              ? "Authorization from designated partners"
-                              : "Board resolution from directors"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {getDocumentUploadComponent(
+                "authorizationLetter",
+                "Authorization Letter / Board Resolution",
+                businessDocuments.authorizationLetterUrl,
+                businessDocuments.authorizationLetterStatus,
+                authorizationLetterRef,
+                handleStageFileUpload,
+                Shield,
+                businessType === "individual"
+                  ? "Self-declaration letter"
+                  : businessType === "partnership"
+                    ? "Authorization from partners"
+                    : businessType === "llp"
+                      ? "Authorization from designated partners"
+                      : "Board resolution from directors",
+                ".pdf,.jpg,.jpeg,.png",
+              )}
             </div>
 
             {/* Partnership Deed - Only for Partnership and LLP */}
             {(businessType === "partnership" || businessType === "llp") && (
               <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                 <h4 className="font-medium text-purple-900">🤝 Partnership Documents:</h4>
-                <div className="space-y-2">
-                  <Label>
-                    {businessType === "partnership" ? "Partnership Deed" : "LLP Agreement"}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-4 text-center hover:border-purple-400 transition-colors">
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => handleBusinessDocumentUpload("partnershipDeed", e.target.files?.[0] || null)}
-                      className="hidden"
-                      id="partnershipDeed"
-                    />
-                    {businessDocuments.partnershipDeed ? (
-                      <div className="flex items-center justify-center gap-2 text-green-600">
-                        <Check className="h-5 w-5" />
-                        <span className="text-sm font-medium">{businessDocuments.partnershipDeed.name}</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Users className="h-8 w-8 text-purple-400 mx-auto" />
-                        <div className="text-sm text-gray-600">
-                          <Button
-                            variant="link"
-                            className="p-0 h-auto text-purple-600"
-                            onClick={() => document.getElementById("partnershipDeed")?.click()}
-                          >
-                            Click to upload
-                          </Button>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {businessType === "partnership" ? "Registered partnership deed" : "LLP agreement"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {getDocumentUploadComponent(
+                  "partnershipDeed",
+                  businessType === "partnership" ? "Partnership Deed" : "LLP Agreement",
+                  businessDocuments.partnershipDeedUrl,
+                  businessDocuments.partnershipDeedStatus,
+                  partnershipDeedRef,
+                  handleStageFileUpload,
+                  Users,
+                  businessType === "partnership" ? "Registered partnership deed" : "LLP agreement",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
               </div>
             )}
 
@@ -523,84 +1061,31 @@ export default function GSTRegistration() {
                 <h4 className="font-medium text-emerald-900">🏢 Company Documents:</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Certificate of Incorporation */}
-                  <div className="space-y-2">
-                    <Label>
-                      Certificate of Incorporation <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="border-2 border-dashed border-emerald-300 rounded-lg p-4 text-center hover:border-emerald-400 transition-colors">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) =>
-                          handleBusinessDocumentUpload("certificateOfIncorporation", e.target.files?.[0] || null)
-                        }
-                        className="hidden"
-                        id="certificateOfIncorporation"
-                      />
-                      {businessDocuments.certificateOfIncorporation ? (
-                        <div className="flex items-center justify-center gap-2 text-green-600">
-                          <Check className="h-5 w-5" />
-                          <span className="text-xs font-medium">
-                            {businessDocuments.certificateOfIncorporation.name}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <Award className="h-6 w-6 text-emerald-400 mx-auto" />
-                          <div className="text-sm text-gray-600">
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="p-0 h-auto text-emerald-600 text-xs"
-                              onClick={() => document.getElementById("certificateOfIncorporation")?.click()}
-                            >
-                              Upload
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {getDocumentUploadComponent(
+                    "certificateOfIncorporation",
+                    "Certificate of Incorporation",
+                    businessDocuments.certificateOfIncorporationUrl,
+                    businessDocuments.certificateOfIncorporationStatus,
+                    certificateOfIncorporationRef,
+                    handleStageFileUpload,
+                    Award,
+                    "Company incorporation certificate from ROC",
+                    ".pdf,.jpg,.jpeg,.png",
+                  )}
 
                   {/* MOA & AOA */}
-                  <div className="space-y-2">
-                    <Label>
-                      MOA & AOA <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="border-2 border-dashed border-emerald-300 rounded-lg p-4 text-center hover:border-emerald-400 transition-colors">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleBusinessDocumentUpload("moaAoa", e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="moaAoa"
-                      />
-                      {businessDocuments.moaAoa ? (
-                        <div className="flex items-center justify-center gap-2 text-green-600">
-                          <Check className="h-5 w-5" />
-                          <span className="text-xs font-medium">{businessDocuments.moaAoa.name}</span>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <FileText className="h-6 w-6 text-emerald-400 mx-auto" />
-                          <div className="text-sm text-gray-600">
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="p-0 h-auto text-emerald-600 text-xs"
-                              onClick={() => document.getElementById("moaAoa")?.click()}
-                            >
-                              Upload
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {getDocumentUploadComponent(
+                    "moaAoa",
+                    "MOA & AOA",
+                    businessDocuments.moaAoaUrl,
+                    businessDocuments.moaAoaStatus,
+                    moaAoaRef,
+                    handleStageFileUpload,
+                    FileText,
+                    "Memorandum and Articles of Association documents",
+                    ".pdf,.jpg,.jpeg,.png",
+                  )}
                 </div>
-                <p className="text-xs text-emerald-700">
-                  MOA (Memorandum of Association) & AOA (Articles of Association) documents
-                </p>
               </div>
             )}
           </CardContent>
@@ -637,44 +1122,39 @@ export default function GSTRegistration() {
             <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
               <h4 className="font-medium text-orange-900">📌 Required for Rented Property:</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { key: "rentAgreement", label: "Rent/Lease Agreement (Registered)" },
-                  { key: "electricityBill", label: "Electricity Bill (latest)" },
-                  { key: "noc", label: "NOC from Property Owner" },
-                ].map((doc) => (
-                  <div key={doc.key} className="space-y-2">
-                    <Label>
-                      {doc.label} <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="border-2 border-dashed border-orange-300 rounded-lg p-3 text-center">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleDocumentUpload(doc.key, e.target.files?.[0] || null)}
-                        className="hidden"
-                        id={doc.key}
-                      />
-                      {documents[doc.key]?.uploaded ? (
-                        <div className="text-green-600">
-                          <Check className="h-5 w-5 mx-auto mb-1" />
-                          <span className="text-xs">Uploaded</span>
-                        </div>
-                      ) : (
-                        <div>
-                          <Upload className="h-6 w-6 text-orange-400 mx-auto mb-1" />
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0 h-auto text-orange-600 text-xs"
-                            onClick={() => document.getElementById(doc.key)?.click()}
-                          >
-                            Upload
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {getDocumentUploadComponent(
+                  "rentAgreement",
+                  "Rent/Lease Agreement (Registered)",
+                  documents.rentAgreement?.url,
+                  documents.rentAgreement?.status,
+                  rentAgreementRef,
+                  handleStageFileUpload,
+                  Upload,
+                  "",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
+                {getDocumentUploadComponent(
+                  "electricityBill",
+                  "Electricity Bill (latest)",
+                  documents.electricityBill?.url,
+                  documents.electricityBill?.status,
+                  electricityBillRef,
+                  handleStageFileUpload,
+                  Upload,
+                  "",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
+                {getDocumentUploadComponent(
+                  "noc",
+                  "NOC from Property Owner",
+                  documents.noc?.url,
+                  documents.noc?.status,
+                  nocRef,
+                  handleStageFileUpload,
+                  Upload,
+                  "",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
               </div>
             </div>
           )}
@@ -683,43 +1163,28 @@ export default function GSTRegistration() {
             <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
               <h4 className="font-medium text-green-900">📌 Required for Owned Property:</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { key: "propertyProof", label: "Index II / Sale Deed / Property Tax Receipt" },
-                  { key: "electricityBillOwned", label: "Electricity Bill (latest)" },
-                ].map((doc) => (
-                  <div key={doc.key} className="space-y-2">
-                    <Label>
-                      {doc.label} <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="border-2 border-dashed border-green-300 rounded-lg p-3 text-center">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleDocumentUpload(doc.key, e.target.files?.[0] || null)}
-                        className="hidden"
-                        id={doc.key}
-                      />
-                      {documents[doc.key]?.uploaded ? (
-                        <div className="text-green-600">
-                          <Check className="h-5 w-5 mx-auto mb-1" />
-                          <span className="text-xs">Uploaded</span>
-                        </div>
-                      ) : (
-                        <div>
-                          <Upload className="h-6 w-6 text-green-400 mx-auto mb-1" />
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0 h-auto text-green-600 text-xs"
-                            onClick={() => document.getElementById(doc.key)?.click()}
-                          >
-                            Upload
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {getDocumentUploadComponent(
+                  "propertyProof",
+                  "Index II / Sale Deed / Property Tax Receipt",
+                  documents.propertyProof?.url,
+                  documents.propertyProof?.status,
+                  propertyProofRef,
+                  handleStageFileUpload,
+                  Upload,
+                  "",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
+                {getDocumentUploadComponent(
+                  "electricityBillOwned",
+                  "Electricity Bill (latest)",
+                  documents.electricityBillOwned?.url,
+                  documents.electricityBillOwned?.status,
+                  electricityBillOwnedRef,
+                  handleStageFileUpload,
+                  Upload,
+                  "",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
               </div>
             </div>
           )}
@@ -781,51 +1246,34 @@ export default function GSTRegistration() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Cancelled Cheque or First Page of Passbook</Label>
-              <div className="border-2 border-dashed border-indigo-300 rounded-lg p-4 text-center hover:border-indigo-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleBankDocumentUpload(e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="cancelledCheque"
-                />
-                {bankDetails.cancelledCheque ? (
-                  <div className="flex items-center justify-center gap-2 text-green-600">
-                    <Check className="h-5 w-5" />
-                    <span className="text-sm font-medium">{bankDetails.cancelledCheque.name}</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Upload className="h-8 w-8 text-indigo-400 mx-auto" />
-                    <div className="text-sm text-gray-600">
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-indigo-600"
-                        onClick={() => document.getElementById("cancelledCheque")?.click()}
-                      >
-                        Click to upload
-                      </Button>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Upload cancelled cheque or first page of passbook with name and account details clearly visible
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <DocumentUploadSection
+              docType="cancelledCheque"
+              label="Cancelled Cheque or Bank Statement"
+              description="Upload cancelled cheque or bank statement for account verification"
+              required={true}
+              currentDocState={{
+                name: "cancelledCheque",
+                file: bankDetails.cancelledCheque,
+                uploaded: !!bankDetails.cancelledChequeUrl,
+                url: bankDetails.cancelledChequeUrl,
+                status: bankDetails.cancelledChequeStatus,
+                tempFile: bankDetails.tempCancelledCheque,
+                tempUrl: bankDetails.tempCancelledChequeUrl,
+              }}
+              onFileSelect={handleBankDocumentSelect}
+              colorClass="indigo"
+            />
           </div>
         </CardContent>
       </Card>
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild>
+        <Button variant="outline" asChild disabled={isSaving}>
           <Link href="/dashboard/registration">Save & Continue Later</Link>
         </Button>
-        <Button className="bg-primary hover:bg-primary/90" disabled={progress < 100}>
-          Submit GST Application ({progress}%)
+        <Button className="bg-primary hover:bg-primary/90" onClick={handleSubmit} disabled={progress < 100 || isSaving}>
+          {isSaving ? "Submitting..." : `Submit GST Application (${progress}%)`}
         </Button>
       </div>
     </div>
