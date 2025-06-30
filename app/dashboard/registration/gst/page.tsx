@@ -84,7 +84,8 @@ interface StagedFileEntry {
 }
 
 export default function GSTRegistration() {
-  const [premiseType, setPremiseType] = useState<"rented" | "owned" | "">("")
+  const [premiseType, setPremiseType] = useState<"rented" | "owned" | "other" | "">("")
+  const [otherPremiseDescription, setOtherPremiseDescription] = useState("")
   const [profileData, setProfileData] = useState<ProfileData>({
     fullName: "",
     email: "",
@@ -139,6 +140,7 @@ export default function GSTRegistration() {
     partnershipDeed: null,
     certificateOfIncorporation: null,
     moaAoa: null,
+    otherProof: null,
   })
 
   const [uploadingStates, setUploadingStates] = useState<Record<string, boolean>>({
@@ -152,6 +154,7 @@ export default function GSTRegistration() {
     partnershipDeed: false,
     certificateOfIncorporation: false,
     moaAoa: false,
+    otherProof: false,
   })
 
   const [isSaving, setIsSaving] = useState(false) // Declare isSaving state
@@ -168,6 +171,7 @@ export default function GSTRegistration() {
   const partnershipDeedRef = useRef<HTMLInputElement>(null)
   const certificateOfIncorporationRef = useRef<HTMLInputElement>(null)
   const moaAoaRef = useRef<HTMLInputElement>(null)
+  const otherProofRef = useRef<HTMLInputElement>(null)
 
   const router = useRouter() // Initialize router
 
@@ -297,9 +301,9 @@ export default function GSTRegistration() {
       if (businessDetails.businessName.trim()) completed++
     }
 
-    // Business entity documents (based on business type)
-    if (businessType) {
-      total += 1 // Authorization letter (required for all)
+    // Business entity documents (based on business type) - SKIP for individual/sole proprietorship
+    if (businessType && businessType !== "individual") {
+      total += 1 // Authorization letter (required for all non-individual types)
       if (
         (businessDocuments.authorizationLetterUrl && businessDocuments.authorizationLetterStatus !== "rejected") ||
         stagedFiles.authorizationLetter
@@ -348,26 +352,10 @@ export default function GSTRegistration() {
         stagedFiles.electricityBillOwned
       )
         completed++
-    }
-
-    // Bank Details (optional, so not added to total unless filled)
-    if (
-      bankDetails.accountNumber.trim() ||
-      bankDetails.bankName.trim() ||
-      bankDetails.branchName.trim() ||
-      bankDetails.ifscCode.trim() ||
-      bankDetails.cancelledChequeUrl ||
-      stagedFiles.cancelledCheque
-    ) {
-      total += 5 // account, bank, branch, ifsc, cheque
-      if (bankDetails.accountNumber.trim()) completed++
-      if (bankDetails.bankName.trim()) completed++
-      if (bankDetails.branchName.trim()) completed++
-      if (bankDetails.ifscCode.trim()) completed++
-      if (
-        (bankDetails.cancelledChequeUrl && bankDetails.cancelledChequeStatus !== "rejected") ||
-        stagedFiles.cancelledCheque
-      )
+    } else if (premiseType === "other") {
+      total += 2 // For description and the 'other' document
+      if (otherPremiseDescription.trim()) completed++
+      if ((documents.otherProof?.url && documents.otherProof?.status !== "rejected") || stagedFiles.otherProof)
         completed++
     }
 
@@ -420,6 +408,11 @@ export default function GSTRegistration() {
     // For GST, only natureOfBusiness and businessName are directly editable
     await updateProfileCompletion("natureOfBusiness", businessDetails.natureOfBusiness)
     await updateProfileCompletion("businessName", businessDetails.businessName)
+    // New: Update otherPremiseDescription if premiseType is 'other'
+    if (premiseType === "other") {
+      await updateProfileCompletion("otherPremiseDescription", otherPremiseDescription)
+    }
+
     // You might also want to save bank details if they are considered part of the "profile"
     // For now, assuming bank details are handled as part of document uploads or a separate action.
 
@@ -434,7 +427,7 @@ export default function GSTRegistration() {
       }
     }
 
-    // Bank cancelled cheque
+    // Bank cancelled cheque (still pushed if selected, but not required for progress)
     if (
       bankDetails.tempCancelledCheque &&
       (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
@@ -477,6 +470,7 @@ export default function GSTRegistration() {
             ;(updatedBusinessDocuments as any)[`${type}Url`] = result.fileUrl
             ;(updatedBusinessDocuments as any)[`${type}Status`] = "uploaded"
           } else {
+            // This handles rentAgreement, electricityBill, noc, propertyProof, electricityBillOwned, and now otherProof
             updatedDocuments[type] = {
               name: file.name,
               file: file,
@@ -995,8 +989,8 @@ export default function GSTRegistration() {
         </CardContent>
       </Card>
 
-      {/* Business Entity Documents - Show based on business type */}
-      {businessType && (
+      {/* Business Entity Documents - Show based on business type - HIDE for individual/sole proprietorship */}
+      {businessType && businessType !== "individual" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1005,17 +999,15 @@ export default function GSTRegistration() {
             </CardTitle>
             <CardDescription>
               Upload required documents for{" "}
-              {businessType === "individual"
-                ? "Individual/Sole Proprietor"
-                : businessType === "partnership"
-                  ? "Partnership Firm"
-                  : businessType === "llp"
-                    ? "LLP"
-                    : "Private Limited Company"}
+              {businessType === "partnership"
+                ? "Partnership Firm"
+                : businessType === "llp"
+                  ? "LLP"
+                  : "Private Limited Company"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Authorization Letter - Required for all types */}
+            {/* Authorization Letter - Required for all non-individual types */}
             <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
               <h4 className="font-medium text-indigo-900">📋 Authorization Documents:</h4>
               {getDocumentUploadComponent(
@@ -1026,13 +1018,11 @@ export default function GSTRegistration() {
                 authorizationLetterRef,
                 handleStageFileUpload,
                 Shield,
-                businessType === "individual"
-                  ? "Self-declaration letter"
-                  : businessType === "partnership"
-                    ? "Authorization from partners"
-                    : businessType === "llp"
-                      ? "Authorization from designated partners"
-                      : "Board resolution from directors",
+                businessType === "partnership"
+                  ? "Authorization from partners"
+                  : businessType === "llp"
+                    ? "Authorization from designated partners"
+                    : "Board resolution from directors",
                 ".pdf,.jpg,.jpeg,.png",
               )}
             </div>
@@ -1106,7 +1096,10 @@ export default function GSTRegistration() {
             <Label>
               Select your premise type: <span className="text-red-500">*</span>
             </Label>
-            <RadioGroup value={premiseType} onValueChange={(value) => setPremiseType(value as "rented" | "owned")}>
+            <RadioGroup
+              value={premiseType}
+              onValueChange={(value) => setPremiseType(value as "rented" | "owned" | "other")}
+            >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="rented" id="rented" />
                 <Label htmlFor="rented">Rented Property</Label>
@@ -1114,6 +1107,10 @@ export default function GSTRegistration() {
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="owned" id="owned" />
                 <Label htmlFor="owned">Owned Property</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="other" id="other" />
+                <Label htmlFor="other">Other</Label>
               </div>
             </RadioGroup>
           </div>
@@ -1188,6 +1185,35 @@ export default function GSTRegistration() {
               </div>
             </div>
           )}
+
+          {premiseType === "other" && (
+            <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-medium text-blue-900">📌 Required for Other Property Type:</h4>
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="otherPremiseDescription">
+                  Specify Premise Type <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="otherPremiseDescription"
+                  placeholder="e.g., Co-working space, Shared office, etc."
+                  value={otherPremiseDescription}
+                  onChange={(e) => setOtherPremiseDescription(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">Please describe the type of premise</p>
+              </div>
+              {getDocumentUploadComponent(
+                "otherProof",
+                "Proof of Premise (e.g., Agreement, Letter)",
+                documents.otherProof?.url,
+                documents.otherProof?.status,
+                otherProofRef,
+                handleStageFileUpload,
+                Upload,
+                "Upload relevant document for your premise type",
+                ".pdf,.jpg,.jpeg,.png",
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1248,9 +1274,9 @@ export default function GSTRegistration() {
 
             <DocumentUploadSection
               docType="cancelledCheque"
-              label="Cancelled Cheque or Bank Statement"
-              description="Upload cancelled cheque or bank statement for account verification"
-              required={true}
+              label="Cancelled Cheque, Bank Statement, or Passbook (Front Page)"
+              description="Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification."
+              required={false}
               currentDocState={{
                 name: "cancelledCheque",
                 file: bankDetails.cancelledCheque,

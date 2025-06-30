@@ -6,6 +6,7 @@ import Dashboard from "@/models/Dashboard"
 import bcrypt from "bcryptjs"
 import type mongoose from "mongoose"
 import { v2 as cloudinary } from "cloudinary"
+import { redirect } from "next/navigation"
 
 // Configure Cloudinary
 cloudinary.config({
@@ -146,6 +147,17 @@ export async function login(prevState: any, formData: FormData) {
     console.error("Login error:", error)
     return { success: false, message: `Login failed: ${error.message}` }
   }
+}
+
+// Logout action
+export async function logout() {
+  // In a real application with sessions/JWT, you would:
+  // - Clear server-side session
+  // - Invalidate JWT tokens
+  // - Clear cookies
+
+  // For now, we'll just redirect to home page
+  redirect("/")
 }
 
 // Create initial dashboard data for new user

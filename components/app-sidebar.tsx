@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react" // Import useEffect and useState
+import { useEffect, useState } from "react"
 import {
   Globe,
   LayoutDashboard,
@@ -29,7 +29,7 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { ProfileCompletionModal } from "./profile-completion-modal"
-import { getDashboardData } from "@/app/actions" // Import getDashboardData
+import { getDashboardData, logout } from "@/app/actions"
 
 const menuItems = [
   {
@@ -65,17 +65,12 @@ const footerItems = [
     url: "/dashboard/settings",
     icon: Settings,
   },
-  {
-    title: "Logout",
-    url: "/logout",
-    icon: LogOut,
-  },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
-  const [profileCompletion, setProfileCompletion] = useState(0) // State for dynamic profile completion
+  const [profileCompletion, setProfileCompletion] = useState(0)
 
   const fetchProfileCompletion = async () => {
     try {
@@ -83,16 +78,25 @@ export function AppSidebar() {
       setProfileCompletion(data.profileCompletion)
     } catch (error) {
       console.error("Failed to fetch profile completion for sidebar:", error)
-      // Optionally set an error state or default value
     }
   }
 
   useEffect(() => {
     fetchProfileCompletion()
-  }, []) // Fetch on mount
+  }, [])
 
   const openProfileModal = () => {
     setIsProfileModalOpen(true)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (error) {
+      console.error("Logout error:", error)
+      // Fallback: redirect to home page
+      window.location.href = "/"
+    }
   }
 
   return (
@@ -171,6 +175,14 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <button onClick={handleLogout} className="w-full flex items-center">
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <ProfileCompletionModal

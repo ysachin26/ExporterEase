@@ -2,15 +2,25 @@
 
 import { useState, useEffect, useCallback } from "react"
 import type React from "react"
-import { ArrowLeft, Check, FileText, User, MapPin, Shield, Key, Clock, XCircle, Eye, Upload } from "lucide-react"
+import { ArrowLeft, Check, Upload, FileText, User, Building, MapPin, Shield, Clock, Eye, XCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Link from "next/link"
 import { getDashboardData, uploadDocument } from "@/app/actions"
+
+interface DocumentUploadState {
+  name: string
+  file: File | null
+  uploaded: boolean
+  url?: string
+  status?: "pending" | "uploaded" | "verified" | "rejected"
+  tempFile?: File | null
+  tempUrl?: string | null
+}
 
 interface ProfileData {
   fullName: string
@@ -24,16 +34,6 @@ interface ProfileData {
   proofOfAddressUrl: string
 }
 
-interface DocumentUploadState {
-  name: string
-  file: File | null
-  uploaded: boolean
-  url?: string
-  status?: "pending" | "uploaded" | "verified" | "rejected"
-  tempFile?: File | null // New: for temporary local storage
-  tempUrl?: string | null // New: for temporary local preview URL
-}
-
 // Helper component for document upload sections
 const DocumentUploadSection = ({
   docType,
@@ -42,7 +42,7 @@ const DocumentUploadSection = ({
   required,
   currentDocState,
   onFileSelect,
-  colorClass = "purple", // Default color
+  colorClass = "purple",
 }: {
   docType: string
   label: string
@@ -93,7 +93,7 @@ const DocumentUploadSection = ({
   }
 
   const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event bubbling
+    e.stopPropagation()
     document.getElementById(fileInputId)?.click()
   }
 
@@ -155,7 +155,6 @@ const DocumentUploadSection = ({
 }
 
 export default function DSCRegistration() {
-  const [certificateType, setCertificateType] = useState<"individual" | "organization" | "">("")
   const [profileData, setProfileData] = useState<ProfileData>({
     fullName: "",
     email: "",
@@ -167,9 +166,10 @@ export default function DSCRegistration() {
     photographUrl: "",
     proofOfAddressUrl: "",
   })
+  const [dscType, setDscType] = useState<"individual" | "organization" | "">("")
   const [businessDetails, setBusinessDetails] = useState({
-    organizationName: "",
     designation: "",
+    organizationName: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
 
@@ -189,14 +189,20 @@ export default function DSCRegistration() {
           photographUrl: data.user.photographUrl,
           proofOfAddressUrl: data.user.proofOfAddressUrl,
         })
-        // Pre-fill organization name with business name
-        setBusinessDetails((prev) => ({
-          ...prev,
-          organizationName: data.user.businessName,
-        }))
+
+        // Auto-set DSC type based on business type
+        if (data.user.businessType === "Proprietorship") {
+          setDscType("individual")
+        } else {
+          setDscType("organization")
+          setBusinessDetails((prev) => ({
+            ...prev,
+            organizationName: data.user.businessName || "",
+          }))
+        }
 
         // Pre-fill registration-specific documents from dashboard data
-        const dscStep = data.registrationSteps.find((step) => step.id === 7) // Assuming DSC is step 7 (adjust if needed)
+        const dscStep = data.registrationSteps.find((step) => step.id === 7) // Assuming DSC is step 7
         if (dscStep) {
           const newDocumentsState: Record<string, DocumentUploadState> = {}
           dscStep.documents.forEach((doc) => {
@@ -226,9 +232,24 @@ export default function DSCRegistration() {
     }
   }, [documents])
 
+  // Check if document is required based on DSC type
+  const isDocumentRequired = (docType: string) => {
+    switch (docType) {
+      case "panCard":
+      case "proofOfAddress":
+      case "photograph":
+      case "aadhaarCard":
+        return true // Required for all DSC types
+      case "authorizationLetter":
+        return dscType === "organization" // Required only for organization DSC
+      default:
+        return false
+    }
+  }
+
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 7 // Basic items + certificate type
+    let total = 6 // Base requirements: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -238,18 +259,31 @@ export default function DSCRegistration() {
     if (profileData.email.trim()) completed++
     if (profileData.mobile.trim()) completed++
 
-    // Certificate type
-    if (certificateType) completed++
+    // DSC type selection
+    if (dscType) {
+      total += 1
+      completed += 1
+    }
 
-    // Organization details (if organization type)
-    if (certificateType === "organization") {
-      total += 2
-      if (businessDetails.organizationName.trim()) completed++
+    // Organization-specific fields
+    if (dscType === "organization") {
+      total += 2 // designation and organizationName
       if (businessDetails.designation.trim()) completed++
+      if (businessDetails.organizationName.trim()) completed++
+    }
+
+    // Add conditional document requirements to total
+    if (isDocumentRequired("authorizationLetter")) {
+      total++
+      if (
+        (documents.authorizationLetter?.url || documents.authorizationLetter?.tempFile) &&
+        documents.authorizationLetter?.status !== "rejected"
+      )
+        completed++
     }
 
     return Math.round((completed / total) * 100)
-  }, [profileData, certificateType, businessDetails])
+  }, [profileData, dscType, businessDetails, documents])
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
@@ -272,14 +306,11 @@ export default function DSCRegistration() {
   }
 
   const handleSubmitApplication = async () => {
-    // First, validate all required fields are filled
     if (progress < 100) {
       alert("Please complete all required fields and upload all necessary documents.")
       return
     }
 
-    // Handle document uploads (DSC page doesn't have specific document uploads in the original,
-    // but if it were to have them, this is where they'd be handled)
     const documentsToUpload: { docType: string; file: File }[] = []
 
     for (const key in documents) {
@@ -348,7 +379,7 @@ export default function DSCRegistration() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">DSC Registration</h1>
-          <p className="text-gray-600 mt-1">Digital Signature Certificate for secure online transactions</p>
+          <p className="text-gray-600 mt-1">Digital Signature Certificate registration</p>
         </div>
       </div>
 
@@ -370,7 +401,7 @@ export default function DSCRegistration() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Building className="h-5 w-5 text-blue-600" />
             Business Information
           </CardTitle>
           <CardDescription>Information from your profile</CardDescription>
@@ -468,24 +499,21 @@ export default function DSCRegistration() {
         </CardContent>
       </Card>
 
-      {/* Certificate Type */}
+      {/* DSC Type Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5 text-purple-600" />
-            Certificate Type <span className="text-red-500">*</span>
+            <Shield className="h-5 w-5 text-purple-600" />
+            DSC Type Selection <span className="text-red-500">*</span>
           </CardTitle>
-          <CardDescription>Select the type of Digital Signature Certificate you need</CardDescription>
+          <CardDescription>Choose the type of Digital Signature Certificate you need</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <Label>
-              Select certificate type: <span className="text-red-500">*</span>
+              Select DSC Type: <span className="text-red-500">*</span>
             </Label>
-            <RadioGroup
-              value={certificateType}
-              onValueChange={(value) => setCertificateType(value as typeof certificateType)}
-            >
+            <RadioGroup value={dscType} onValueChange={(value) => setDscType(value as "individual" | "organization")}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="individual" id="individual" />
                 <Label htmlFor="individual">Individual DSC</Label>
@@ -497,23 +525,36 @@ export default function DSCRegistration() {
             </RadioGroup>
           </div>
 
-          {certificateType === "individual" && (
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">👤 Individual DSC</h4>
-              <p className="text-blue-700 text-sm">
-                This certificate will be issued in your personal name and can be used for personal digital transactions.
+          {dscType === "individual" && (
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <h4 className="font-medium text-green-900 mb-2">Individual DSC Selected</h4>
+              <p className="text-green-800 text-sm">
+                This DSC will be issued in your personal name and can be used for personal digital signatures.
               </p>
             </div>
           )}
 
-          {certificateType === "organization" && (
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <h4 className="font-medium text-purple-900 mb-3">🏢 Organization DSC</h4>
-              <p className="text-purple-700 text-sm mb-4">
-                This certificate will be issued for your organization and requires additional details.
+          {dscType === "organization" && (
+            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+              <h4 className="font-medium text-purple-900 mb-3">Organization DSC Selected</h4>
+              <p className="text-purple-800 text-sm mb-4">
+                This DSC will be issued for your organization and requires additional details.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="designation">
+                    Your Designation <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="designation"
+                    placeholder="e.g., Director, Partner, Proprietor"
+                    value={businessDetails.designation}
+                    onChange={(e) => setBusinessDetails((prev) => ({ ...prev, designation: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-500">Your role/position in the organization</p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="organizationName">
                     Organization Name <span className="text-red-500">*</span>
@@ -524,18 +565,7 @@ export default function DSCRegistration() {
                     value={businessDetails.organizationName}
                     onChange={(e) => setBusinessDetails((prev) => ({ ...prev, organizationName: e.target.value }))}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="designation">
-                    Your Designation <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="designation"
-                    placeholder="e.g., Director, Manager, etc."
-                    value={businessDetails.designation}
-                    onChange={(e) => setBusinessDetails((prev) => ({ ...prev, designation: e.target.value }))}
-                  />
+                  <p className="text-xs text-gray-500">Legal name of your organization</p>
                 </div>
               </div>
             </div>
@@ -543,28 +573,29 @@ export default function DSCRegistration() {
         </CardContent>
       </Card>
 
-      {/* Video Verification Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-amber-600" />
-            Video Verification / eKYC
-          </CardTitle>
-          <CardDescription>Required for DSC registration</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <h4 className="font-medium text-amber-900 mb-3">📹 Video Verification Process:</h4>
-            <ul className="text-amber-800 text-sm space-y-2">
-              <li>• Video verification will be scheduled after document submission</li>
-              <li>• You'll need to appear for a video call with the Registration Authority</li>
-              <li>• Keep your original documents ready for verification</li>
-              <li>• The process typically takes 10-15 minutes</li>
-              <li>• Ensure good lighting and stable internet connection</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Conditional Documents Based on DSC Type - HIDE for individual DSC */}
+      {isDocumentRequired("authorizationLetter") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-orange-600" />
+              Authorization Letter <span className="text-red-500">*</span>
+            </CardTitle>
+            <CardDescription>Required for Organization DSC</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DocumentUploadSection
+              docType="authorizationLetter"
+              label="Authorization Letter / Board Resolution"
+              description="Authorization letter or board resolution for DSC application on behalf of the organization"
+              required={true}
+              currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
+              onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
+              colorClass="orange"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* DSC Information */}
       <Card>
@@ -579,21 +610,32 @@ export default function DSCRegistration() {
           <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
             <h4 className="font-medium text-emerald-900 mb-3">🔐 What is DSC?</h4>
             <ul className="text-emerald-800 text-sm space-y-2">
-              <li>• Digital Signature Certificate is a secure digital key that certifies your identity</li>
-              <li>• Required for filing income tax returns, GST returns, and other government forms</li>
-              <li>• Ensures authenticity and integrity of digital documents</li>
-              <li>• Valid for 1-3 years depending on the type selected</li>
-              <li>• Can be used on multiple devices with proper installation</li>
+              <li>• Digital Signature Certificate is a secure digital key</li>
+              <li>• Used to authenticate your identity in digital transactions</li>
+              <li>• Required for filing various government forms and documents</li>
+              <li>• Provides legal validity to electronic documents</li>
+              <li>• Essential for GST returns, income tax filings, and more</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-900 mb-3">📋 Uses of DSC:</h4>
+            <ul className="text-blue-800 text-sm space-y-2">
+              <li>• Filing GST returns and other tax documents</li>
+              <li>• E-tendering and government procurement</li>
+              <li>• Company registration and compliance filings</li>
+              <li>• Banking and financial transactions</li>
+              <li>• Legal document authentication</li>
             </ul>
           </div>
 
           <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <h4 className="font-medium text-amber-900 mb-3">📋 Next Steps After Registration:</h4>
+            <h4 className="font-medium text-amber-900 mb-3">⚠️ Important Notes:</h4>
             <ul className="text-amber-800 text-sm space-y-2">
-              <li>• You will receive a token number for tracking your application</li>
-              <li>• Physical verification may be required at the Registration Authority</li>
-              <li>• DSC will be issued within 3-7 working days after verification</li>
-              <li>• You will receive the certificate via email or USB token</li>
+              <li>• DSC is typically valid for 1-3 years from the date of issue</li>
+              <li>• You will receive the DSC on a USB token or as a software certificate</li>
+              <li>• Keep your DSC password secure and confidential</li>
+              <li>• Renewal is required before expiry for continued use</li>
             </ul>
           </div>
         </CardContent>

@@ -696,7 +696,7 @@ export default function IECRegistration() {
         </CardContent>
       </Card>
 
-      {/* Conditional Documents Based on Business Type */}
+      {/* Conditional Documents Based on Business Type - HIDE for individual/sole proprietorship */}
       {isDocumentRequired("authorizationLetter") && (
         <Card>
           <CardHeader>

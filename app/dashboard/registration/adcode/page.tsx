@@ -9,12 +9,12 @@ import {
   FileText,
   User,
   Building,
-  CreditCard,
   MapPin,
   DollarSign,
   Clock,
   Eye,
   XCircle,
+  ExternalLink,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,8 +30,8 @@ interface DocumentUploadState {
   uploaded: boolean
   url?: string
   status?: "pending" | "uploaded" | "verified" | "rejected"
-  tempFile?: File | null // New: for temporary local storage
-  tempUrl?: string | null // New: for temporary local preview URL
+  tempFile?: File | null
+  tempUrl?: string | null
 }
 
 interface BankDetails {
@@ -42,8 +42,8 @@ interface BankDetails {
   cancelledCheque: File | null
   cancelledChequeUrl?: string
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
-  tempCancelledCheque?: File | null // New: for temporary local storage
-  tempCancelledChequeUrl?: string | null // New: for temporary local preview URL
+  tempCancelledCheque?: File | null
+  tempCancelledChequeUrl?: string | null
 }
 
 interface ProfileData {
@@ -66,7 +66,10 @@ const DocumentUploadSection = ({
   required,
   currentDocState,
   onFileSelect,
-  colorClass = "purple", // Default color
+  colorClass = "purple",
+  showCertificateRedirect = false,
+  certificateRedirectUrl = "",
+  certificateRedirectText = "",
 }: {
   docType: string
   label: string
@@ -85,6 +88,9 @@ const DocumentUploadSection = ({
       }
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  showCertificateRedirect?: boolean
+  certificateRedirectUrl?: string
+  certificateRedirectText?: string
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -128,7 +134,7 @@ const DocumentUploadSection = ({
   }
 
   const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event bubbling
+    e.stopPropagation()
     document.getElementById(fileInputId)?.click()
   }
 
@@ -182,9 +188,24 @@ const DocumentUploadSection = ({
               <span className={`text-${colorClass}-600`}>Click to upload</span>
             </div>
             <p className="text-xs text-gray-500">{description}</p>
+            <p className="text-xs text-gray-400">Supported formats: .pdf, .jpg, .jpeg, .png</p>
           </div>
         )}
       </div>
+
+      {/* Certificate Redirect Section */}
+      {showCertificateRedirect && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-blue-700">{certificateRedirectText}</span>
+            <Button variant="link" className="p-0 h-auto text-blue-600 text-sm" asChild>
+              <Link href={certificateRedirectUrl}>
+                Get it made from us <ExternalLink className="h-3 w-3 ml-1" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -204,6 +225,7 @@ export default function ADCodeRegistration() {
   const [businessDetails, setBusinessDetails] = useState({
     businessAddress: "",
     iecNumber: "",
+    dscNumber: "",
   })
   const [bankDetails, setBankDetails] = useState<BankDetails>({
     accountNumber: "",
@@ -236,7 +258,7 @@ export default function ADCodeRegistration() {
         })
 
         // Pre-fill registration-specific documents from dashboard data
-        const adCodeStep = data.registrationSteps.find((step) => step.id === 5) // Assuming AD Code is step 5
+        const adCodeStep = data.registrationSteps.find((step) => step.id === 5)
         if (adCodeStep) {
           const newDocumentsState: Record<string, DocumentUploadState> = {}
           const newBankDetailsState: BankDetails = { ...bankDetails }
@@ -304,10 +326,8 @@ export default function ADCodeRegistration() {
         return true // Required for all business types for AD Code
       case "authorizationLetter":
         return businessTypeKey !== "individual" // Required for all except individual
-      case "dsc":
-        return true // Required for AD Code for all business types
-      case "activeIecCertificate":
-        return true // Required for AD Code for all business types
+      case "iecCertificate":
+      case "dscCertificate":
       case "adCodeLetterFromBank":
         return true // Required for AD Code for all business types
       default:
@@ -317,7 +337,7 @@ export default function ADCodeRegistration() {
 
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 12 // Base requirements: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, iecNumber, bank details (account, bank, ifsc, cheque), iecCertificate
+    let total = 11 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, iecNumber, dscNumber, iecCertificate, dscCertificate, adCodeLetterFromBank
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -330,21 +350,22 @@ export default function ADCodeRegistration() {
     // Business details
     if (businessDetails.businessAddress.trim()) completed++
     if (businessDetails.iecNumber.trim()) completed++
+    if (businessDetails.dscNumber.trim()) completed++
 
-    // Bank Details (optional, so not added to total unless filled)
-    if (
-      bankDetails.accountNumber.trim() &&
-      bankDetails.bankName.trim() &&
-      bankDetails.ifscCode.trim() &&
-      (bankDetails.cancelledChequeUrl || bankDetails.tempCancelledCheque) &&
-      bankDetails.cancelledChequeStatus !== "rejected"
-    )
-      completed++
-
-    // IEC Certificate: Consider complete if either uploaded (url) or temporarily selected (tempFile)
+    // Documents: Check for either uploaded URL or temp file
     if (
       (documents.iecCertificate?.url || documents.iecCertificate?.tempFile) &&
       documents.iecCertificate?.status !== "rejected"
+    )
+      completed++
+    if (
+      (documents.dscCertificate?.url || documents.dscCertificate?.tempFile) &&
+      documents.dscCertificate?.status !== "rejected"
+    )
+      completed++
+    if (
+      (documents.adCodeLetterFromBank?.url || documents.adCodeLetterFromBank?.tempFile) &&
+      documents.adCodeLetterFromBank?.status !== "rejected"
     )
       completed++
 
@@ -358,8 +379,10 @@ export default function ADCodeRegistration() {
         completed++
     }
 
+    // Bank details are optional, so not included in progress calculation
+
     return Math.round((completed / total) * 100)
-  }, [profileData, businessDetails, bankDetails, documents])
+  }, [profileData, businessDetails, documents])
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
@@ -398,25 +421,22 @@ export default function ADCodeRegistration() {
   }
 
   const handleSubmitApplication = async () => {
-    // First, validate all required fields are filled
-    if (progress < 100) {
+    if (calculateProgress() < 100) {
       alert("Please complete all required fields and upload all necessary documents.")
       return
     }
 
-    // Handle document uploads
     const documentsToUpload: { docType: string; file: File; isBankDoc?: boolean }[] = []
 
     // General documents
     for (const key in documents) {
       const doc = documents[key]
-      // Only upload if tempFile exists and not already uploaded successfully (or was rejected)
       if (doc.tempFile && (!doc.url || doc.status === "rejected")) {
         documentsToUpload.push({ docType: key, file: doc.tempFile })
       }
     }
 
-    // Bank cancelled cheque
+    // Bank cancelled cheque (optional)
     if (
       bankDetails.tempCancelledCheque &&
       (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
@@ -435,7 +455,7 @@ export default function ADCodeRegistration() {
       const formData = new FormData()
       formData.append("file", docInfo.file)
       formData.append("documentType", docInfo.docType)
-      formData.append("stepId", "5") // AD Code Registration step ID
+      formData.append("stepId", "5")
 
       try {
         const result = await uploadDocument(formData)
@@ -501,7 +521,7 @@ export default function ADCodeRegistration() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">AD Code Registration</h1>
-          <p className="text-gray-600 mt-1">Authorized Dealer Code for foreign exchange transactions</p>
+          <p className="text-gray-600 mt-1">Authorized Dealer Code registration for foreign exchange transactions</p>
         </div>
       </div>
 
@@ -666,11 +686,50 @@ export default function ADCodeRegistration() {
             currentDocState={documents.iecCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("iecCertificate", file)}
             colorClass="purple"
+            showCertificateRedirect={true}
+            certificateRedirectUrl="/dashboard/registration/iec"
+            certificateRedirectText="Don't have IEC Certificate?"
+          />
+
+          <div className="space-y-2">
+            <Label htmlFor="dscNumber">
+              DSC Number <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="dscNumber"
+              placeholder="Enter your DSC number"
+              value={businessDetails.dscNumber}
+              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, dscNumber: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500">Your Digital Signature Certificate number</p>
+          </div>
+
+          <DocumentUploadSection
+            docType="dscCertificate"
+            label="DSC Certificate"
+            description="Upload your DSC certificate copy"
+            required={true}
+            currentDocState={documents.dscCertificate || { name: "", file: null, uploaded: false }}
+            onFileSelect={(file) => handleDocumentSelect("dscCertificate", file)}
+            colorClass="indigo"
+            showCertificateRedirect={true}
+            certificateRedirectUrl="/dashboard/registration/dsc"
+            certificateRedirectText="Don't have DSC Certificate?"
+          />
+
+          <DocumentUploadSection
+            docType="adCodeLetterFromBank"
+            label="AD Code Letter from Bank"
+            description="Upload AD Code authorization letter from your bank"
+            required={true}
+            currentDocState={documents.adCodeLetterFromBank || { name: "", file: null, uploaded: false }}
+            onFileSelect={(file) => handleDocumentSelect("adCodeLetterFromBank", file)}
+            colorClass="emerald"
           />
         </CardContent>
       </Card>
 
-      {/* Conditional Documents Based on Business Type */}
+      {/* Conditional Documents Based on Business Type - HIDE for individual/sole proprietorship */}
       {isDocumentRequired("authorizationLetter") && (
         <Card>
           <CardHeader>
@@ -684,7 +743,7 @@ export default function ADCodeRegistration() {
             <DocumentUploadSection
               docType="authorizationLetter"
               label="Authorization Letter / Board Resolution"
-              description="Authorization letter or board resolution for ICEGATE application"
+              description="Authorization letter or board resolution for AD Code application"
               required={true}
               currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
@@ -694,24 +753,25 @@ export default function ADCodeRegistration() {
         </Card>
       )}
 
-      {/* Bank Details (Required for AD Code) */}
+      {/* Bank Details (Optional for Sole Proprietorship) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-indigo-600" />
-            Bank Details <span className="text-red-500">*</span>
+            <Building className="h-5 w-5 text-slate-600" />
+            Bank Details (Optional at the time of registration)
           </CardTitle>
-          <CardDescription>Bank details are mandatory for AD Code registration</CardDescription>
+          <CardDescription>You can provide bank details now or add them later</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-            <h4 className="font-medium text-indigo-900">🏦 Required Bank Details:</h4>
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="font-medium text-slate-900 flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              Bank Details Include:
+            </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">
-                  Bank Account Number <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="accountNumber">Bank Account Number</Label>
                 <Input
                   id="accountNumber"
                   placeholder="Enter account number"
@@ -721,9 +781,7 @@ export default function ADCodeRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ifscCode">
-                  IFSC Code <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="ifscCode">IFSC Code</Label>
                 <Input
                   id="ifscCode"
                   placeholder="Enter IFSC code"
@@ -733,9 +791,7 @@ export default function ADCodeRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bankName">
-                  Bank Name <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="bankName">Bank Name</Label>
                 <Input
                   id="bankName"
                   placeholder="Enter bank name"
@@ -755,51 +811,63 @@ export default function ADCodeRegistration() {
               </div>
             </div>
 
-            <DocumentUploadSection
-              docType="cancelledCheque"
-              label="Cancelled Cheque or Bank Statement"
-              description="Upload cancelled cheque or bank statement for account verification"
-              required={true}
-              currentDocState={{
-                name: "cancelledCheque",
-                file: bankDetails.cancelledCheque,
-                uploaded: !!bankDetails.cancelledChequeUrl,
-                url: bankDetails.cancelledChequeUrl,
-                status: bankDetails.cancelledChequeStatus,
-                tempFile: bankDetails.tempCancelledCheque,
-                tempUrl: bankDetails.tempCancelledChequeUrl,
-              }}
-              onFileSelect={handleBankDocumentSelect}
-              colorClass="indigo"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Required Documents Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-amber-600" />
-            Additional Requirements
-          </CardTitle>
-          <CardDescription>Documents you'll need for AD Code registration</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <h4 className="font-medium text-amber-900 mb-3">📋 Additional Requirements for AD Code:</h4>
-            <ul className="text-amber-800 text-sm space-y-2">
-              <li>
-                • <strong>Digital Signature Certificate (DSC):</strong> Required for signing documents electronically
-              </li>
-              <li>
-                • <strong>Active IEC Certificate:</strong> Your IEC should be active and valid
-              </li>
-              <li>
-                • <strong>AD Code Letter from Bank:</strong> Bank authorization for foreign exchange transactions
-              </li>
-              <li>• These will be verified during the registration process</li>
-            </ul>
+            <div className="space-y-2">
+              <Label>Cancelled Cheque, Bank Statement, or Passbook (Front Page)</Label>
+              <p className="text-sm text-gray-600 mb-2">
+                Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification.
+              </p>
+              <div
+                className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-slate-400 transition-colors cursor-pointer"
+                onClick={() => document.getElementById("bankDocument")?.click()}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleBankDocumentSelect(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="bankDocument"
+                />
+                {bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="flex items-center gap-1 text-green-600 text-xs">
+                      <Check className="h-3 w-3" />
+                      <span>Document Selected</span>
+                    </div>
+                    {(bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl) && (
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const url = bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl
+                          if (url) window.open(url, "_blank")
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    )}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-slate-600 text-xs mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        document.getElementById("bankDocument")?.click()
+                      }}
+                    >
+                      <Upload className="h-3 w-3 mr-1" /> Change / Re-upload
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Upload className="h-8 w-8 text-slate-400 mx-auto" />
+                    <div className="text-sm text-gray-600">
+                      <span className="text-slate-600">Click to upload</span>
+                    </div>
+                    <p className="text-xs text-gray-400">Supported formats: .pdf, .jpg, .jpeg, .png</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -815,24 +883,24 @@ export default function ADCodeRegistration() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-            <h4 className="font-medium text-emerald-900 mb-3">💱 What is AD Code?</h4>
+            <h4 className="font-medium text-emerald-900 mb-3">💰 What is AD Code?</h4>
             <ul className="text-emerald-800 text-sm space-y-2">
-              <li>• Authorized Dealer Code for foreign exchange transactions</li>
-              <li>• Required for receiving export proceeds and making import payments</li>
-              <li>• Links your bank account with your import/export activities</li>
-              <li>• Enables compliance with FEMA (Foreign Exchange Management Act)</li>
-              <li>• Facilitates smooth foreign currency transactions</li>
+              <li>• Authorized Dealer Code is a unique identification number</li>
+              <li>• Issued by authorized dealer banks for foreign exchange transactions</li>
+              <li>• Required for import/export transactions and foreign remittances</li>
+              <li>• Links your business with the bank for FOREX compliance</li>
+              <li>• Essential for customs clearance and RBI reporting</li>
             </ul>
           </div>
 
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h4 className="font-medium text-blue-900 mb-3">📋 Benefits of AD Code:</h4>
             <ul className="text-blue-800 text-sm space-y-2">
-              <li>• Seamless receipt of export proceeds in foreign currency</li>
-              <li>• Easy processing of import payments</li>
-              <li>• Compliance with RBI regulations for forex transactions</li>
-              <li>• Access to various export incentive schemes</li>
-              <li>• Simplified documentation for international trade</li>
+              <li>• Enables foreign exchange transactions for import/export</li>
+              <li>• Facilitates customs clearance processes</li>
+              <li>• Required for opening Letter of Credit (LC)</li>
+              <li>• Enables bank guarantee and other trade finance facilities</li>
+              <li>• Ensures compliance with RBI regulations</li>
             </ul>
           </div>
         </CardContent>

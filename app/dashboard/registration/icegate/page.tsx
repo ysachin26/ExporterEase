@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { ArrowLeft, Check, Upload, FileText, User, Building, MapPin, Key, Clock, Eye, XCircle } from "lucide-react"
+import {
+  ArrowLeft,
+  Check,
+  Upload,
+  FileText,
+  User,
+  Building,
+  MapPin,
+  Key,
+  Clock,
+  Eye,
+  XCircle,
+  ExternalLink,
+} from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,7 +46,7 @@ interface ProfileData {
   proofOfAddressUrl: string
 }
 
-// Helper component for document upload sections
+// Helper component for document upload sections with certificate redirect option
 const DocumentUploadSection = ({
   docType,
   label,
@@ -41,7 +54,10 @@ const DocumentUploadSection = ({
   required,
   currentDocState,
   onFileSelect,
-  colorClass = "purple", // Default color
+  colorClass = "purple",
+  showCertificateRedirect = false,
+  certificateRedirectUrl = "",
+  certificateRedirectText = "",
 }: {
   docType: string
   label: string
@@ -50,6 +66,9 @@ const DocumentUploadSection = ({
   currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  showCertificateRedirect?: boolean
+  certificateRedirectUrl?: string
+  certificateRedirectText?: string
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -92,7 +111,7 @@ const DocumentUploadSection = ({
   }
 
   const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event bubbling
+    e.stopPropagation()
     document.getElementById(fileInputId)?.click()
   }
 
@@ -149,6 +168,24 @@ const DocumentUploadSection = ({
           </div>
         )}
       </div>
+
+      {/* Certificate redirect link */}
+      {showCertificateRedirect && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800 mb-2">Don't have {certificateRedirectText}? Get it made from us!</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-blue-600 border-blue-300 hover:bg-blue-100 bg-transparent"
+            asChild
+          >
+            <Link href={certificateRedirectUrl} className="flex items-center gap-2">
+              <ExternalLink className="h-3 w-3" />
+              Apply for {certificateRedirectText}
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -167,7 +204,13 @@ export default function ICEGATERegistration() {
   })
   const [businessDetails, setBusinessDetails] = useState({
     iecNumber: "",
-    adCode: "",
+    dscNumber: "",
+  })
+  const [bankDetails, setBankDetails] = useState({
+    accountNumber: "",
+    ifscCode: "",
+    bankName: "",
+    branchName: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
 
@@ -249,10 +292,10 @@ export default function ICEGATERegistration() {
         return businessTypeKey !== "individual" // Required for all except individual
       case "iecCertificate":
         return true // Required for ICEGATE for all business types
-      case "adCodeLetterFromBank":
+      case "dscCertificate":
         return true // Required for ICEGATE for all business types
       case "gstCertificate":
-        return true // Required for ICEGATE for all business types
+        return false // GST certificate not required for ICEGATE registration for any business type
       default:
         return false
     }
@@ -260,7 +303,7 @@ export default function ICEGATERegistration() {
 
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 10 // Base requirements: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, iecNumber, adCode, iecCertificate, adCodeLetterFromBank
+    let total = 9 // Base requirements: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, iecNumber, dscNumber, iecCertificate, dscCertificate
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -272,7 +315,7 @@ export default function ICEGATERegistration() {
 
     // Business details
     if (businessDetails.iecNumber.trim()) completed++
-    if (businessDetails.adCode.trim()) completed++
+    if (businessDetails.dscNumber.trim()) completed++
 
     // Documents: Check for either uploaded URL or temp file
     if (
@@ -281,17 +324,12 @@ export default function ICEGATERegistration() {
     )
       completed++
     if (
-      (documents.adCodeLetterFromBank?.url || documents.adCodeLetterFromBank?.tempFile) &&
-      documents.adCodeLetterFromBank?.status !== "rejected"
-    )
-      completed++
-    if (
-      (documents.gstCertificate?.url || documents.gstCertificate?.tempFile) &&
-      documents.gstCertificate?.status !== "rejected"
+      (documents.dscCertificate?.url || documents.dscCertificate?.tempFile) &&
+      documents.dscCertificate?.status !== "rejected"
     )
       completed++
 
-    // Add conditional document requirements to total
+    // Add conditional document requirements to total for non-individual business types
     if (isDocumentRequired("authorizationLetter")) {
       total++
       if (
@@ -300,6 +338,16 @@ export default function ICEGATERegistration() {
       )
         completed++
     }
+
+    // GST certificate is no longer required for any business type in ICEGATE
+    // if (isDocumentRequired("gstCertificate")) {
+    //   total++
+    //   if (
+    //     (documents.gstCertificate?.url || documents.gstCertificate?.tempFile) &&
+    //     documents.gstCertificate?.status !== "rejected"
+    //   )
+    //     completed++
+    // }
 
     return Math.round((completed / total) * 100)
   }, [profileData, businessDetails, documents])
@@ -325,7 +373,7 @@ export default function ICEGATERegistration() {
   }
 
   const handleSubmitApplication = async () => {
-    if (progress < 100) {
+    if (calculateProgress() < 100) {
       alert("Please complete all required fields and upload all necessary documents.")
       return
     }
@@ -386,6 +434,7 @@ export default function ICEGATERegistration() {
   }
 
   const progress = calculateProgress()
+  const isSoleProprietorship = getBusinessTypeKey(profileData.businessType) === "individual"
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -542,19 +591,6 @@ export default function ICEGATERegistration() {
             <p className="text-xs text-gray-500">Your Import Export Code number</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="adCode">
-              AD Code <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="adCode"
-              placeholder="Enter your AD Code"
-              value={businessDetails.adCode}
-              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, adCode: e.target.value }))}
-            />
-            <p className="text-xs text-gray-500">Authorized Dealer Code from your bank</p>
-          </div>
-
           <DocumentUploadSection
             docType="iecCertificate"
             label="IEC Certificate"
@@ -563,31 +599,43 @@ export default function ICEGATERegistration() {
             currentDocState={documents.iecCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("iecCertificate", file)}
             colorClass="purple"
+            showCertificateRedirect={true}
+            certificateRedirectUrl="/dashboard/registration/iec"
+            certificateRedirectText="IEC Certificate"
           />
 
+          <div className="space-y-2">
+            <Label htmlFor="dscNumber">
+              DSC Number <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="dscNumber"
+              placeholder="Enter your DSC number"
+              value={businessDetails.dscNumber}
+              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, dscNumber: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500">Your Digital Signature Certificate number</p>
+          </div>
+
           <DocumentUploadSection
-            docType="adCodeLetterFromBank"
-            label="AD Code Letter from Bank"
-            description="Upload the AD Code letter issued by your bank"
+            docType="dscCertificate"
+            label="DSC Certificate"
+            description="Upload your DSC certificate copy"
             required={true}
-            currentDocState={documents.adCodeLetterFromBank || { name: "", file: null, uploaded: false }}
-            onFileSelect={(file) => handleDocumentSelect("adCodeLetterFromBank", file)}
+            currentDocState={documents.dscCertificate || { name: "", file: null, uploaded: false }}
+            onFileSelect={(file) => handleDocumentSelect("dscCertificate", file)}
             colorClass="indigo"
+            showCertificateRedirect={true}
+            certificateRedirectUrl="/dashboard/registration/dsc"
+            certificateRedirectText="DSC Certificate"
           />
 
-          <DocumentUploadSection
-            docType="gstCertificate"
-            label="GST Certificate"
-            description="Upload your GST registration certificate"
-            required={true}
-            currentDocState={documents.gstCertificate || { name: "", file: null, uploaded: false }}
-            onFileSelect={(file) => handleDocumentSelect("gstCertificate", file)}
-            colorClass="emerald"
-          />
+          {/* GST Certificate - Removed for all business types in ICEGATE registration */}
+          {/* GST certificate is not required for ICEGATE registration for any business type */}
         </CardContent>
       </Card>
 
-      {/* Conditional Documents Based on Business Type */}
+      {/* Conditional Documents Based on Business Type - HIDE for individual/sole proprietorship */}
       {isDocumentRequired("authorizationLetter") && (
         <Card>
           <CardHeader>
@@ -610,6 +658,124 @@ export default function ICEGATERegistration() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bank Details - Optional */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building className="h-5 w-5 text-indigo-600" />
+            Bank Details (Optional at the time of registration)
+          </CardTitle>
+          <CardDescription className="text-gray-600">
+            You can provide bank details now or add them later
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2 mb-4">
+              <Building className="h-4 w-4 text-slate-600" />
+              <h4 className="font-medium text-slate-900">Bank Details Include:</h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber" className="text-sm font-medium text-gray-900">
+                  Bank Account Number
+                </Label>
+                <Input
+                  id="accountNumber"
+                  placeholder="Enter account number"
+                  value={bankDetails.accountNumber}
+                  onChange={(e) => setBankDetails((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                  className="bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ifscCode" className="text-sm font-medium text-gray-900">
+                  IFSC Code
+                </Label>
+                <Input
+                  id="ifscCode"
+                  placeholder="Enter IFSC code"
+                  value={bankDetails.ifscCode}
+                  onChange={(e) => setBankDetails((prev) => ({ ...prev, ifscCode: e.target.value }))}
+                  className="bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bankName" className="text-sm font-medium text-gray-900">
+                  Bank Name
+                </Label>
+                <Input
+                  id="bankName"
+                  placeholder="Enter bank name"
+                  value={bankDetails.bankName}
+                  onChange={(e) => setBankDetails((prev) => ({ ...prev, bankName: e.target.value }))}
+                  className="bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branchName" className="text-sm font-medium text-gray-900">
+                  Branch Name
+                </Label>
+                <Input
+                  id="branchName"
+                  placeholder="Enter branch name"
+                  value={bankDetails.branchName}
+                  onChange={(e) => setBankDetails((prev) => ({ ...prev, branchName: e.target.value }))}
+                  className="bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h5 className="text-sm font-medium text-indigo-900">
+                Cancelled Cheque, Bank Statement, or Passbook (Front Page)
+              </h5>
+              <p className="text-sm text-gray-600">
+                Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification.
+              </p>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer bg-white">
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleDocumentSelect("bankDocument", e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="bankDocument"
+                />
+                <label htmlFor="bankDocument" className="cursor-pointer">
+                  {documents.bankDocument?.tempUrl || documents.bankDocument?.url ? (
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="flex items-center gap-1 text-green-600 text-sm">
+                        <Check className="h-4 w-4" />
+                        <span>Document uploaded</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-sm"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          const url = documents.bankDocument?.tempUrl || documents.bankDocument?.url
+                          if (url) window.open(url, "_blank")
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" /> View
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Upload className="h-12 w-12 text-gray-400 mx-auto" />
+                      <div className="text-base text-gray-900">Click to upload</div>
+                      <p className="text-sm text-gray-500">Supported formats: .pdf, .jpg, .jpeg, .png</p>
+                    </div>
+                  )}
+                </label>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ICEGATE Information */}
       <Card>
@@ -657,3 +823,4 @@ export default function ICEGATERegistration() {
     </div>
   )
 }
+
