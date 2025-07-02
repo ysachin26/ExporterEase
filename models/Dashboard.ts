@@ -75,7 +75,7 @@ const DashboardSchema: Schema = new Schema(
   },
   { timestamps: true },
 )
-
+  
 // Methods for Dashboard Schema
 DashboardSchema.methods.calculateOverallProgress = function () {
   const completedSteps = this.registrationSteps.filter((step: any) => step.status === "completed").length

@@ -292,6 +292,24 @@ export async function getDashboardData() {
       panCardUrl: user.panCardUrl,
       photographUrl: user.photographUrl,
       proofOfAddressUrl: user.proofOfAddressUrl,
+      // Include all registration document URLs from User model
+      authorizationLetterUrl: user.authorizationLetterUrl || "",
+      partnershipDeedUrl: user.partnershipDeedUrl || "",
+      llpAgreementUrl: user.llpAgreementUrl || "",
+      certificateOfIncorporationUrl: user.certificateOfIncorporationUrl || "",
+      moaAoaUrl: user.moaAoaUrl || "",
+      cancelledChequeUrl: user.cancelledChequeUrl || "",
+      iecCertificate: user.iecCertificate || "",
+      dscCertificate: user.dscCertificate || "",
+      gstCertificate: user.gstCertificate || "",
+      rentAgreementUrl: user.rentAgreementUrl || "",
+      electricityBillUrl: user.electricityBillUrl || "",
+      nocUrl: user.nocUrl || "",
+      propertyProofUrl: user.propertyProofUrl || "",
+      electricityBillOwnedUrl: user.electricityBillOwnedUrl || "",
+      otherProofUrl: user.otherProofUrl || "",
+      adCodeLetterFromBankUrl: user.adCodeLetterFromBankUrl || "",
+      bankDocumentUrl: user.bankDocumentUrl || "",
     },
     hasStartedRegistration: dashboard.hasStartedRegistration,
     profileCompletion: profileCompletionPercentage,
@@ -328,6 +346,48 @@ function getCloudinaryUploadOptions(file: File, documentType: string, userId: st
     ...baseConfig,
     resource_type: "image" as const,
   }
+}
+
+// Helper function to get the corresponding User model field name for a document type
+function getUserDocumentFieldName(documentType: string): string | null {
+  const documentFieldMap: Record<string, string> = {
+    // Profile documents
+    aadharCard: "aadharCardUrl",
+    panCard: "panCardUrl",
+    photograph: "photographUrl",
+    proofOfAddress: "proofOfAddressUrl",
+
+    // Registration certificates
+    gstCertificate: "gstCertificate",
+    iecCertificate: "iecCertificate",
+    dscCertificate: "dscCertificate",
+    icegateCertificate: "icegateCertificate",
+    adcodeCertificate: "adcodeCertificate",
+
+    // GST Registration Documents
+    rentAgreement: "rentAgreementUrl",
+    electricityBill: "electricityBillUrl",
+    noc: "nocUrl",
+    propertyProof: "propertyProofUrl",
+    electricityBillOwned: "electricityBillOwnedUrl",
+    otherProof: "otherProofUrl",
+
+    // Business Entity Documents (SHARED ACROSS REGISTRATIONS)
+    authorizationLetter: "authorizationLetterUrl", // Used in GST, IEC, DSC, ICEGATE, AD Code
+    partnershipDeed: "partnershipDeedUrl", // Used in GST, IEC
+    llpAgreement: "llpAgreementUrl", // Used in IEC
+    certificateOfIncorporation: "certificateOfIncorporationUrl", // Used in GST, IEC
+    moaAoa: "moaAoaUrl", // Used in GST, IEC
+
+    // Bank Documents (SHARED ACROSS REGISTRATIONS)
+    cancelledCheque: "cancelledChequeUrl", // Used in GST, IEC, AD Code
+    bankDocument: "bankDocumentUrl", // Used in ICEGATE and other registrations
+
+    // AD Code Specific Documents
+    adCodeLetterFromBank: "adCodeLetterFromBankUrl",
+  }
+
+  return documentFieldMap[documentType] || null
 }
 
 // New function to handle file uploads and save URLs
@@ -369,6 +429,7 @@ export async function uploadDocument(formData: FormData) {
 
     const fileUrl = uploadResult.secure_url
 
+    // Update Dashboard model (existing functionality)
     if (stepId) {
       // This is a registration-specific document
       const dashboard = await Dashboard.findOne({ userId: user._id })
@@ -392,25 +453,14 @@ export async function uploadDocument(formData: FormData) {
         })
       }
       await dashboard.save()
-    } else {
-      // This is a profile document
-      switch (documentType) {
-        case "aadharCard":
-          user.aadharCardUrl = fileUrl
-          break
-        case "panCard":
-          user.panCardUrl = fileUrl
-          break
-        case "photograph":
-          user.photographUrl = fileUrl
-          break
-        case "proofOfAddress":
-          user.proofOfAddressUrl = fileUrl
-          break
-        default:
-          return { success: false, message: "Invalid profile document type" }
-      }
+    }
+
+    // Update User model (new functionality) - THIS IS THE KEY PART FOR SHARED DOCUMENTS
+    const userFieldName = getUserDocumentFieldName(documentType)
+    if (userFieldName) {
+      ;(user as any)[userFieldName] = fileUrl
       await user.save()
+      console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
     }
 
     // Update dashboard completion percentage for profile documents

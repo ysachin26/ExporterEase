@@ -15,6 +15,8 @@ import {
   Eye,
   XCircle,
   ExternalLink,
+  Award,
+  Shield,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,27 @@ interface ProfileData {
   aadharCardUrl: string
   photographUrl: string
   proofOfAddressUrl: string
+  // ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  llpAgreementUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+  cancelledChequeUrl: string
+  // IEC Registration Documents
+  iecCertificate: string
+  // GST Registration Documents
+  gstCertificate: string
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
+  // DSC Registration Documents
+  dscCertificate: string
+  // ICEGATE Registration Documents
+  bankDocumentUrl: string
 }
 
 // Helper component for document upload sections
@@ -221,6 +244,22 @@ export default function ADCodeRegistration() {
     aadharCardUrl: "",
     photographUrl: "",
     proofOfAddressUrl: "",
+    authorizationLetterUrl: "",
+    partnershipDeedUrl: "",
+    llpAgreementUrl: "",
+    certificateOfIncorporationUrl: "",
+    moaAoaUrl: "",
+    cancelledChequeUrl: "",
+    iecCertificate: "",
+    gstCertificate: "",
+    rentAgreementUrl: "",
+    electricityBillUrl: "",
+    nocUrl: "",
+    propertyProofUrl: "",
+    electricityBillOwnedUrl: "",
+    otherProofUrl: "",
+    dscCertificate: "",
+    bankDocumentUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
     businessAddress: "",
@@ -255,6 +294,27 @@ export default function ADCodeRegistration() {
           aadharCardUrl: data.user.aadharCardUrl,
           photographUrl: data.user.photographUrl,
           proofOfAddressUrl: data.user.proofOfAddressUrl,
+          // 🔥 ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+          authorizationLetterUrl: data.user.authorizationLetterUrl || "",
+          partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          llpAgreementUrl: data.user.llpAgreementUrl || "",
+          certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
+          moaAoaUrl: data.user.moaAoaUrl || "",
+          cancelledChequeUrl: data.user.cancelledChequeUrl || "",
+          // IEC Documents
+          iecCertificate: data.user.iecCertificate || "",
+          // GST Documents
+          gstCertificate: data.user.gstCertificate || "",
+          rentAgreementUrl: data.user.rentAgreementUrl || "",
+          electricityBillUrl: data.user.electricityBillUrl || "",
+          nocUrl: data.user.nocUrl || "",
+          propertyProofUrl: data.user.propertyProofUrl || "",
+          electricityBillOwnedUrl: data.user.electricityBillOwnedUrl || "",
+          otherProofUrl: data.user.otherProofUrl || "",
+          // DSC Documents
+          dscCertificate: data.user.dscCertificate || "",
+          // ICEGATE Documents
+          bankDocumentUrl: data.user.bankDocumentUrl || "",
         })
 
         // Pre-fill registration-specific documents from dashboard data
@@ -337,7 +397,7 @@ export default function ADCodeRegistration() {
 
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 11 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, iecNumber, dscNumber, iecCertificate, dscCertificate, adCodeLetterFromBank
+    let total = 12 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, iecNumber, dscNumber, iecCertificate, dscCertificate, adCodeLetterFromBank
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -352,14 +412,14 @@ export default function ADCodeRegistration() {
     if (businessDetails.iecNumber.trim()) completed++
     if (businessDetails.dscNumber.trim()) completed++
 
-    // Documents: Check for either uploaded URL or temp file
+    // Documents: Check for either uploaded URL, temp file, or shared documents
     if (
-      (documents.iecCertificate?.url || documents.iecCertificate?.tempFile) &&
+      (documents.iecCertificate?.url || documents.iecCertificate?.tempFile || profileData.iecCertificate) &&
       documents.iecCertificate?.status !== "rejected"
     )
       completed++
     if (
-      (documents.dscCertificate?.url || documents.dscCertificate?.tempFile) &&
+      (documents.dscCertificate?.url || documents.dscCertificate?.tempFile || profileData.dscCertificate) &&
       documents.dscCertificate?.status !== "rejected"
     )
       completed++
@@ -373,7 +433,9 @@ export default function ADCodeRegistration() {
     if (isDocumentRequired("authorizationLetter")) {
       total++
       if (
-        (documents.authorizationLetter?.url || documents.authorizationLetter?.tempFile) &&
+        (documents.authorizationLetter?.url ||
+          documents.authorizationLetter?.tempFile ||
+          profileData.authorizationLetterUrl) &&
         documents.authorizationLetter?.status !== "rejected"
       )
         completed++
@@ -563,6 +625,85 @@ export default function ADCodeRegistration() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificates from Other Registrations */}
+      {(profileData.gstCertificate || profileData.iecCertificate || profileData.dscCertificate) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-emerald-600" />
+              Available Certificates from Other Registrations
+            </CardTitle>
+            <CardDescription>Certificates you've obtained from other registration processes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+              <h4 className="font-medium text-emerald-900 mb-3">📜 Available Certificates:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profileData.gstCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-green-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">GST Certificate</div>
+                      <div className="flex items-center gap-1 text-green-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From GST Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.gstCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.iecCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-purple-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">IEC Certificate</div>
+                      <div className="flex items-center gap-1 text-purple-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From IEC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.iecCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.dscCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">DSC Certificate</div>
+                      <div className="flex items-center gap-1 text-indigo-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From DSC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.dscCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Details Required */}
       <Card>

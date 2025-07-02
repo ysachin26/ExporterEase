@@ -27,7 +27,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
 import { ProfileCompletionModal } from "./profile-completion-modal"
 import { getDashboardData, logout } from "@/app/actions"
 
@@ -38,11 +37,6 @@ const menuItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Documents",
-    url: "/dashboard/documents",
-    icon: FileText,
-  },
-  {
     title: "Registration",
     url: "/dashboard/registration",
     icon: ClipboardList,
@@ -51,6 +45,11 @@ const menuItems = [
     title: "Progress Tracker",
     url: "/dashboard/progress",
     icon: TrendingUp,
+  },
+  {
+    title: "My Document",
+    url: "/dashboard/documents",
+    icon: FileText,
   },
   {
     title: "Help & Support",
@@ -112,35 +111,23 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      {/* My Profile Button */}
-      <div className="px-4 pb-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start h-10 px-3 text-left font-normal hover:bg-gray-100"
+      {/* Combined Profile Section */}
+      <div className="px-4 pb-4">
+        <div
+          className="w-full p-3 rounded-lg border bg-white hover:bg-gray-50 cursor-pointer transition-colors"
           onClick={openProfileModal}
         >
-          <User className="h-4 w-4 mr-3" />
-          <span>My Profile</span>
-        </Button>
-      </div>
-
-      {/* Profile Completion Section */}
-      <div className="px-4 pb-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={openProfileModal}
-              className="text-xs font-medium text-gray-600 hover:text-primary cursor-pointer transition-colors"
-            >
-              Complete your profile
-            </button>
-            <span className="text-xs text-gray-500">{profileCompletion}%</span>
+          <div className="flex items-center gap-3 mb-3">
+            <User className="h-4 w-4 text-gray-600" />
+            <span className="font-medium text-gray-900">My Profile</span>
           </div>
-          <Progress
-            value={profileCompletion}
-            className="h-2 cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={openProfileModal}
-          />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-600">Complete your profile</span>
+              <span className="text-xs text-gray-500">{profileCompletion}%</span>
+            </div>
+            <Progress value={profileCompletion} className="h-2" />
+          </div>
         </div>
       </div>
 

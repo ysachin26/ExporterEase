@@ -74,8 +74,30 @@ interface ProfileData {
   aadharCardUrl: string
   photographUrl: string
   proofOfAddressUrl: string
-  businessType: string // Added businessType to ProfileData
-  businessName: string // Added businessName to ProfileData
+  businessType: string
+  businessName: string
+  // Shared documents from User model - ALL REGISTRATION DOCUMENTS
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+  cancelledChequeUrl: string
+  // IEC Registration Documents
+  iecCertificate: string
+  // DSC Registration Documents
+  dscCertificate: string
+  // ICEGATE Registration Documents
+  gstCertificate: string
+  bankDocumentUrl: string
+  // AD Code Registration Documents
+  adCodeLetterFromBankUrl: string
+  // GST Registration Documents (premise-specific)
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
 }
 
 interface StagedFileEntry {
@@ -96,6 +118,22 @@ export default function GSTRegistration() {
     proofOfAddressUrl: "",
     businessType: "",
     businessName: "",
+    authorizationLetterUrl: "",
+    partnershipDeedUrl: "",
+    certificateOfIncorporationUrl: "",
+    moaAoaUrl: "",
+    cancelledChequeUrl: "",
+    iecCertificate: "",
+    dscCertificate: "",
+    gstCertificate: "",
+    bankDocumentUrl: "",
+    adCodeLetterFromBankUrl: "",
+    rentAgreementUrl: "",
+    electricityBillUrl: "",
+    nocUrl: "",
+    propertyProofUrl: "",
+    electricityBillOwnedUrl: "",
+    otherProofUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
     natureOfBusiness: "",
@@ -209,8 +247,30 @@ export default function GSTRegistration() {
           aadharCardUrl: data.user.aadharCardUrl,
           photographUrl: data.user.photographUrl,
           proofOfAddressUrl: data.user.proofOfAddressUrl,
-          businessType: data.user.businessType, // Set businessType from fetched data
-          businessName: data.user.businessName, // Set businessName from fetched data
+          businessType: data.user.businessType,
+          businessName: data.user.businessName,
+          // 🔥 ALL SHARED DOCUMENTS FROM USER MODEL
+          authorizationLetterUrl: data.user.authorizationLetterUrl || "",
+          partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
+          moaAoaUrl: data.user.moaAoaUrl || "",
+          cancelledChequeUrl: data.user.cancelledChequeUrl || "",
+          // IEC Documents
+          iecCertificate: data.user.iecCertificate || "",
+          // DSC Documents
+          dscCertificate: data.user.dscCertificate || "",
+          // ICEGATE Documents
+          gstCertificate: data.user.gstCertificate || "",
+          bankDocumentUrl: data.user.bankDocumentUrl || "",
+          // AD Code Documents
+          adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
+          // GST Premise Documents
+          rentAgreementUrl: data.user.rentAgreementUrl || "",
+          electricityBillUrl: data.user.electricityBillUrl || "",
+          nocUrl: data.user.nocUrl || "",
+          propertyProofUrl: data.user.propertyProofUrl || "",
+          electricityBillOwnedUrl: data.user.electricityBillOwnedUrl || "",
+          otherProofUrl: data.user.otherProofUrl || "",
         })
 
         // Pre-fill business name from profile
@@ -219,28 +279,48 @@ export default function GSTRegistration() {
           businessName: data.user.businessName || "",
         }))
 
+        // 🔥 PRE-FILL BUSINESS DOCUMENTS FROM USER MODEL (SHARED DOCUMENTS)
+        setBusinessDocuments((prev) => ({
+          ...prev,
+          authorizationLetterUrl: data.user.authorizationLetterUrl || "",
+          partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
+          moaAoaUrl: data.user.moaAoaUrl || "",
+          // Mark as uploaded if URL exists
+          authorizationLetter: data.user.authorizationLetterUrl ? ({} as File) : null,
+          partnershipDeed: data.user.partnershipDeedUrl ? ({} as File) : null,
+          certificateOfIncorporation: data.user.certificateOfIncorporationUrl ? ({} as File) : null,
+          moaAoa: data.user.moaAoaUrl ? ({} as File) : null,
+          authorizationLetterStatus: data.user.authorizationLetterUrl ? "uploaded" : "pending",
+          partnershipDeedStatus: data.user.partnershipDeedUrl ? "uploaded" : "pending",
+          certificateOfIncorporationStatus: data.user.certificateOfIncorporationUrl ? "uploaded" : "pending",
+          moaAoaStatus: data.user.moaAoaUrl ? "uploaded" : "pending",
+        }))
+
+        // 🔥 PRE-FILL BANK DETAILS FROM USER MODEL (SHARED DOCUMENTS)
+        setBankDetails((prev) => ({
+          ...prev,
+          cancelledChequeUrl: data.user.cancelledChequeUrl || "",
+          cancelledCheque: data.user.cancelledChequeUrl ? ({} as File) : null,
+          cancelledChequeStatus: data.user.cancelledChequeUrl ? "uploaded" : "pending",
+        }))
+
         // Pre-fill registration-specific documents from dashboard data
         const gstStep = data.registrationSteps.find((step) => step.id === 3) // Assuming GST is step 3
         if (gstStep) {
           const newDocumentsState: Record<string, DocumentUploadState> = {}
-          const newBusinessDocumentsState: BusinessDocuments = { ...businessDocuments }
-          const newBankDetailsState: BankDetails = { ...bankDetails }
 
           gstStep.documents.forEach((doc) => {
-            if (doc.name === "cancelledCheque") {
-              newBankDetailsState.cancelledChequeUrl = doc.url
-              newBankDetailsState.cancelledCheque = doc.url ? ({} as File) : null // Mark as uploaded if URL exists
-              newBankDetailsState.cancelledChequeStatus = doc.status
-            } else if (
-              doc.name === "authorizationLetter" ||
-              doc.name === "partnershipDeed" ||
-              doc.name === "certificateOfIncorporation" ||
-              doc.name === "moaAoa"
+            // Skip shared documents as they're handled above
+            if (
+              ![
+                "authorizationLetter",
+                "partnershipDeed",
+                "certificateOfIncorporation",
+                "moaAoa",
+                "cancelledCheque",
+              ].includes(doc.name)
             ) {
-              ;(newBusinessDocumentsState as any)[`${doc.name}Url`] = doc.url
-              ;(newBusinessDocumentsState as any)[doc.name] = doc.url ? ({} as File) : null
-              ;(newBusinessDocumentsState as any)[`${doc.name}Status`] = doc.status
-            } else {
               newDocumentsState[doc.name] = {
                 name: doc.name,
                 file: doc.url ? ({} as File) : null,
@@ -251,8 +331,6 @@ export default function GSTRegistration() {
             }
           })
           setDocuments(newDocumentsState)
-          setBusinessDocuments(newBusinessDocumentsState)
-          setBankDetails(newBankDetailsState)
 
           // Determine premise type if documents are uploaded
           if (gstStep.documents.some((d) => d.name === "rentAgreement" || d.name === "noc")) {
@@ -632,6 +710,11 @@ export default function GSTRegistration() {
               >
                 {currentStatus === "rejected" ? "Rejected" : "Uploaded"}
               </span>
+              {/* 🔥 SHOW "SHARED FROM PREVIOUS REGISTRATION" MESSAGE */}
+              <div className="flex items-center gap-1 text-blue-600 text-xs">
+                <Check className="h-3 w-3" />
+                <span>Shared from previous registration</span>
+              </div>
               {currentUrl && (
                 <Button
                   variant="link"
@@ -772,6 +855,11 @@ export default function GSTRegistration() {
               >
                 {currentDocState.status === "rejected" ? "Rejected" : "Uploaded"}
               </span>
+              {/* 🔥 SHOW "SHARED FROM PREVIOUS REGISTRATION" MESSAGE */}
+              <div className="flex items-center gap-1 text-blue-600 text-xs">
+                <Check className="h-3 w-3" />
+                <span>Shared from previous registration</span>
+              </div>
               {currentDocState.url && (
                 <Button
                   variant="link"
@@ -1292,6 +1380,88 @@ export default function GSTRegistration() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificates from Other Registrations */}
+      {(profileData.iecCertificate ||
+        profileData.dscCertificate ||
+        profileData.gstCertificate ||
+        profileData.adCodeLetterFromBankUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-emerald-600" />
+              Available Certificates from Other Registrations
+            </CardTitle>
+            <CardDescription>Certificates you've obtained from other registration processes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+              <h4 className="font-medium text-emerald-900 mb-3">📜 Available Certificates:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profileData.iecCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-emerald-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">IEC Certificate</div>
+                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from IEC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.iecCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.dscCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">DSC Certificate</div>
+                      <div className="flex items-center gap-1 text-indigo-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from DSC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.dscCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.adCodeLetterFromBankUrl && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">AD Code Letter</div>
+                      <div className="flex items-center gap-1 text-blue-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from AD Code Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Document
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">

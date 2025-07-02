@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   ArrowLeft,
   Check,
@@ -15,6 +15,8 @@ import {
   Clock,
   Eye,
   XCircle,
+  Award,
+  Shield,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,27 @@ interface ProfileData {
   aadharCardUrl: string
   photographUrl: string
   proofOfAddressUrl: string
+  // ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  llpAgreementUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+  cancelledChequeUrl: string
+  // GST Registration Documents
+  gstCertificate: string
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
+  // DSC Registration Documents
+  dscCertificate: string
+  // ICEGATE Registration Documents
+  bankDocumentUrl: string
+  // AD Code Registration Documents
+  adCodeLetterFromBankUrl: string
 }
 
 // Helper component for document upload sections
@@ -201,6 +224,22 @@ export default function IECRegistration() {
     aadharCardUrl: "",
     photographUrl: "",
     proofOfAddressUrl: "",
+    authorizationLetterUrl: "",
+    partnershipDeedUrl: "",
+    llpAgreementUrl: "",
+    certificateOfIncorporationUrl: "",
+    moaAoaUrl: "",
+    cancelledChequeUrl: "",
+    gstCertificate: "",
+    rentAgreementUrl: "",
+    electricityBillUrl: "",
+    nocUrl: "",
+    propertyProofUrl: "",
+    electricityBillOwnedUrl: "",
+    otherProofUrl: "",
+    dscCertificate: "",
+    bankDocumentUrl: "",
+    adCodeLetterFromBankUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
     natureOfBusiness: "",
@@ -234,6 +273,27 @@ export default function IECRegistration() {
           aadharCardUrl: data.user.aadharCardUrl,
           photographUrl: data.user.photographUrl,
           proofOfAddressUrl: data.user.proofOfAddressUrl,
+          // 🔥 ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+          authorizationLetterUrl: data.user.authorizationLetterUrl || "",
+          partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          llpAgreementUrl: data.user.llpAgreementUrl || "",
+          certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
+          moaAoaUrl: data.user.moaAoaUrl || "",
+          cancelledChequeUrl: data.user.cancelledChequeUrl || "",
+          // GST Documents
+          gstCertificate: data.user.gstCertificate || "",
+          rentAgreementUrl: data.user.rentAgreementUrl || "",
+          electricityBillUrl: data.user.electricityBillUrl || "",
+          nocUrl: data.user.nocUrl || "",
+          propertyProofUrl: data.user.propertyProofUrl || "",
+          electricityBillOwnedUrl: data.user.electricityBillOwnedUrl || "",
+          otherProofUrl: data.user.otherProofUrl || "",
+          // DSC Documents
+          dscCertificate: data.user.dscCertificate || "",
+          // ICEGATE Documents
+          bankDocumentUrl: data.user.bankDocumentUrl || "",
+          // AD Code Documents
+          adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
         // Pre-fill business name
         setBusinessDetails((prev) => ({
@@ -325,9 +385,9 @@ export default function IECRegistration() {
     }
   }
 
-  const calculateProgress = () => {
+  const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 9 // Base requirements: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, natureOfBusiness, businessAddress, bank details (account, ifsc, cheque)
+    let total = 9 // Base requirements
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -345,16 +405,18 @@ export default function IECRegistration() {
     if (
       bankDetails.accountNumber.trim() &&
       bankDetails.ifscCode.trim() &&
-      (bankDetails.cancelledChequeUrl || bankDetails.tempCancelledCheque) &&
+      (bankDetails.cancelledChequeUrl || bankDetails.tempCancelledCheque || profileData.cancelledChequeUrl) &&
       bankDetails.cancelledChequeStatus !== "rejected"
     )
       completed++
 
-    // Add conditional document requirements to total and check for tempFile or url
+    // Add conditional document requirements to total and check for tempFile, url, or shared documents
     if (isDocumentRequired("authorizationLetter")) {
       total++
       if (
-        (documents.authorizationLetter?.url || documents.authorizationLetter?.tempFile) &&
+        (documents.authorizationLetter?.url ||
+          documents.authorizationLetter?.tempFile ||
+          profileData.authorizationLetterUrl) &&
         documents.authorizationLetter?.status !== "rejected"
       )
         completed++
@@ -362,7 +424,7 @@ export default function IECRegistration() {
     if (isDocumentRequired("partnershipDeed")) {
       total++
       if (
-        (documents.partnershipDeed?.url || documents.partnershipDeed?.tempFile) &&
+        (documents.partnershipDeed?.url || documents.partnershipDeed?.tempFile || profileData.partnershipDeedUrl) &&
         documents.partnershipDeed?.status !== "rejected"
       )
         completed++
@@ -370,7 +432,7 @@ export default function IECRegistration() {
     if (isDocumentRequired("llpAgreement")) {
       total++
       if (
-        (documents.llpAgreement?.url || documents.llpAgreement?.tempFile) &&
+        (documents.llpAgreement?.url || documents.llpAgreement?.tempFile || profileData.llpAgreementUrl) &&
         documents.llpAgreement?.status !== "rejected"
       )
         completed++
@@ -378,18 +440,24 @@ export default function IECRegistration() {
     if (isDocumentRequired("certificateOfIncorporation")) {
       total++
       if (
-        (documents.certificateOfIncorporation?.url || documents.certificateOfIncorporation?.tempFile) &&
+        (documents.certificateOfIncorporation?.url ||
+          documents.certificateOfIncorporation?.tempFile ||
+          profileData.certificateOfIncorporationUrl) &&
         documents.certificateOfIncorporation?.status !== "rejected"
       )
         completed++
     }
     if (isDocumentRequired("moaAoa")) {
       total++
-      if ((documents.moaAoa?.url || documents.moaAoa?.tempFile) && documents.moaAoa?.status !== "rejected") completed++
+      if (
+        (documents.moaAoa?.url || documents.moaAoa?.tempFile || profileData.moaAoaUrl) &&
+        documents.moaAoa?.status !== "rejected"
+      )
+        completed++
     }
 
     return Math.round((completed / total) * 100)
-  }
+  }, [profileData, businessDetails, documents, bankDetails])
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
@@ -580,6 +648,85 @@ export default function IECRegistration() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificates from Other Registrations */}
+      {(profileData.gstCertificate || profileData.dscCertificate || profileData.adCodeLetterFromBankUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-emerald-600" />
+              Available Certificates from Other Registrations
+            </CardTitle>
+            <CardDescription>Certificates you've obtained from other registration processes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+              <h4 className="font-medium text-emerald-900 mb-3">📜 Available Certificates:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profileData.gstCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-green-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">GST Certificate</div>
+                      <div className="flex items-center gap-1 text-green-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from GST Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.gstCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.dscCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">DSC Certificate</div>
+                      <div className="flex items-center gap-1 text-indigo-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from DSC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.dscCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.adCodeLetterFromBankUrl && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">AD Code Letter</div>
+                      <div className="flex items-center gap-1 text-blue-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available from AD Code Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View Document
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Details Required */}
       <Card>

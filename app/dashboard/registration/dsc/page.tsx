@@ -2,7 +2,21 @@
 
 import { useState, useEffect, useCallback } from "react"
 import type React from "react"
-import { ArrowLeft, Check, Upload, FileText, User, Building, MapPin, Shield, Clock, Eye, XCircle } from "lucide-react"
+import {
+  ArrowLeft,
+  Check,
+  Upload,
+  FileText,
+  User,
+  Building,
+  MapPin,
+  Shield,
+  Clock,
+  Eye,
+  XCircle,
+  Award,
+  CreditCard,
+} from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +46,27 @@ interface ProfileData {
   aadharCardUrl: string
   photographUrl: string
   proofOfAddressUrl: string
+  // ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  llpAgreementUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+  cancelledChequeUrl: string
+  // IEC Registration Documents
+  iecCertificate: string
+  // GST Registration Documents
+  gstCertificate: string
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
+  // ICEGATE Registration Documents
+  bankDocumentUrl: string
+  // AD Code Registration Documents
+  adCodeLetterFromBankUrl: string
 }
 
 // Helper component for document upload sections
@@ -165,6 +200,22 @@ export default function DSCRegistration() {
     aadharCardUrl: "",
     photographUrl: "",
     proofOfAddressUrl: "",
+    authorizationLetterUrl: "",
+    partnershipDeedUrl: "",
+    llpAgreementUrl: "",
+    certificateOfIncorporationUrl: "",
+    moaAoaUrl: "",
+    cancelledChequeUrl: "",
+    iecCertificate: "",
+    gstCertificate: "",
+    rentAgreementUrl: "",
+    electricityBillUrl: "",
+    nocUrl: "",
+    propertyProofUrl: "",
+    electricityBillOwnedUrl: "",
+    otherProofUrl: "",
+    bankDocumentUrl: "",
+    adCodeLetterFromBankUrl: "",
   })
   const [dscType, setDscType] = useState<"individual" | "organization" | "">("")
   const [businessDetails, setBusinessDetails] = useState({
@@ -188,6 +239,27 @@ export default function DSCRegistration() {
           aadharCardUrl: data.user.aadharCardUrl,
           photographUrl: data.user.photographUrl,
           proofOfAddressUrl: data.user.proofOfAddressUrl,
+          // 🔥 ALL SHARED DOCUMENTS FROM ALL REGISTRATIONS
+          authorizationLetterUrl: data.user.authorizationLetterUrl || "",
+          partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          llpAgreementUrl: data.user.llpAgreementUrl || "",
+          certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
+          moaAoaUrl: data.user.moaAoaUrl || "",
+          cancelledChequeUrl: data.user.cancelledChequeUrl || "",
+          // IEC Documents
+          iecCertificate: data.user.iecCertificate || "",
+          // GST Documents
+          gstCertificate: data.user.gstCertificate || "",
+          rentAgreementUrl: data.user.rentAgreementUrl || "",
+          electricityBillUrl: data.user.electricityBillUrl || "",
+          nocUrl: data.user.nocUrl || "",
+          propertyProofUrl: data.user.propertyProofUrl || "",
+          electricityBillOwnedUrl: data.user.electricityBillOwnedUrl || "",
+          otherProofUrl: data.user.otherProofUrl || "",
+          // ICEGATE Documents
+          bankDocumentUrl: data.user.bankDocumentUrl || "",
+          // AD Code Documents
+          adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
 
         // Auto-set DSC type based on business type
@@ -276,7 +348,9 @@ export default function DSCRegistration() {
     if (isDocumentRequired("authorizationLetter")) {
       total++
       if (
-        (documents.authorizationLetter?.url || documents.authorizationLetter?.tempFile) &&
+        (documents.authorizationLetter?.url ||
+          documents.authorizationLetter?.tempFile ||
+          profileData.authorizationLetterUrl) &&
         documents.authorizationLetter?.status !== "rejected"
       )
         completed++
@@ -421,6 +495,85 @@ export default function DSCRegistration() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificates from Other Registrations */}
+      {(profileData.gstCertificate || profileData.iecCertificate || profileData.adCodeLetterFromBankUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-emerald-600" />
+              Available Certificates from Other Registrations
+            </CardTitle>
+            <CardDescription>Certificates you've obtained from other registration processes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+              <h4 className="font-medium text-emerald-900 mb-3">📜 Available Certificates:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profileData.gstCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-green-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">GST Certificate</div>
+                      <div className="flex items-center gap-1 text-green-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From GST Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.gstCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.iecCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-purple-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">IEC Certificate</div>
+                      <div className="flex items-center gap-1 text-purple-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From IEC Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.iecCertificate, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {profileData.adCodeLetterFromBankUrl && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">AD Code Letter</div>
+                      <div className="flex items-center gap-1 text-blue-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>From AD Code Registration</span>
+                      </div>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs mt-1"
+                        onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Details Required */}
       <Card>

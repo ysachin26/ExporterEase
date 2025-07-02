@@ -16,6 +16,42 @@ export interface IUser extends Document {
   panCardUrl: string // Changed from panCardUploaded boolean
   photographUrl: string // Changed from photographUploaded boolean
   proofOfAddressUrl: string // Changed from proofOfAddressUploaded boolean
+
+  // Registration documents
+  gstNumber: string
+  gstCertificate: string // URL from Cloudinary
+  iecNumber: string
+  iecCertificate: string // URL from Cloudinary
+  dscNumber: string
+  dscCertificate: string // URL from Cloudinary
+  icegateNumber: string
+  icegateCertificate: string // URL from Cloudinary
+  adcodeNumber: string
+  adcodeCertificate: string // URL from Cloudinary
+
+  // GST Registration Documents
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
+
+  // Business Entity Documents
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  llpAgreementUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+
+  // Bank Documents
+  cancelledChequeUrl: string
+
+  // AD Code Specific Documents
+  adCodeLetterFromBankUrl: string
+
+  // Bank Document (for various registrations)
+  bankDocumentUrl: string
 }
 
 const UserSchema: Schema = new Schema(
@@ -39,6 +75,42 @@ const UserSchema: Schema = new Schema(
     panCardUrl: { type: String, default: "" }, // URL to uploaded PAN card
     photographUrl: { type: String, default: "" }, // URL to uploaded photograph
     proofOfAddressUrl: { type: String, default: "" }, // URL to uploaded proof of address
+
+    // Registration documents - Basic certificates
+    gstNumber: { type: String, default: "" },
+    gstCertificate: { type: String, default: "" }, // URL from Cloudinary
+    iecNumber: { type: String, default: "" },
+    iecCertificate: { type: String, default: "" }, // URL from Cloudinary
+    dscNumber: { type: String, default: "" },
+    dscCertificate: { type: String, default: "" }, // URL from Cloudinary
+    icegateNumber: { type: String, default: "" },
+    icegateCertificate: { type: String, default: "" }, // URL from Cloudinary
+    adcodeNumber: { type: String, default: "" },
+    adcodeCertificate: { type: String, default: "" }, // URL from Cloudinary
+
+    // GST Registration Documents
+    rentAgreementUrl: { type: String, default: "" },
+    electricityBillUrl: { type: String, default: "" },
+    nocUrl: { type: String, default: "" },
+    propertyProofUrl: { type: String, default: "" },
+    electricityBillOwnedUrl: { type: String, default: "" },
+    otherProofUrl: { type: String, default: "" },
+
+    // Business Entity Documents
+    authorizationLetterUrl: { type: String, default: "" },
+    partnershipDeedUrl: { type: String, default: "" },
+    llpAgreementUrl: { type: String, default: "" },
+    certificateOfIncorporationUrl: { type: String, default: "" },
+    moaAoaUrl: { type: String, default: "" },
+
+    // Bank Documents
+    cancelledChequeUrl: { type: String, default: "" },
+
+    // AD Code Specific Documents
+    adCodeLetterFromBankUrl: { type: String, default: "" },
+
+    // Bank Document (for various registrations)
+    bankDocumentUrl: { type: String, default: "" },
   },
   { timestamps: true },
 )
