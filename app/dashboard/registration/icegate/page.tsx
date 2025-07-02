@@ -160,6 +160,13 @@ const DocumentUploadSection = ({
         {displayUrl ? (
           <div className="flex flex-col items-center justify-center gap-2">
             {getStatusDisplay(currentDocState.status, hasTempFile)}
+            {/* Add shared from previous registration message if applicable */}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <div className="flex items-center gap-1 text-blue-600 text-xs">
+                <Check className="h-3 w-3" />
+                <span>Shared from previous registration</span>
+              </div>
+            )}
             {displayUrl && (
               <Button
                 variant="link"
@@ -180,6 +187,15 @@ const DocumentUploadSection = ({
               >
                 <Upload className="h-3 w-3 mr-1" />{" "}
                 {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+              </Button>
+            )}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <Button
+                variant="link"
+                className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
+                onClick={handleButtonClick}
+              >
+                <Upload className="h-3 w-3 mr-1" /> Replace
               </Button>
             )}
           </div>
@@ -296,20 +312,40 @@ export default function ICEGATERegistration() {
         })
 
         // Pre-fill registration-specific documents from dashboard data
-        const icegateStep = data.registrationSteps.find((step) => step.id === 6) // Assuming ICEGATE is step 6
-        if (icegateStep) {
-          const newDocumentsState: Record<string, DocumentUploadState> = {}
-          icegateStep.documents.forEach((doc) => {
-            newDocumentsState[doc.name] = {
-              name: doc.name,
-              file: doc.url ? ({} as File) : null,
-              uploaded: !!doc.url,
-              url: doc.url,
-              status: doc.status,
-            }
-          })
-          setDocuments(newDocumentsState)
+        const icegateStep = data.registrationSteps.find((step) => step.id === 6)
+        const icegateStepDocuments = icegateStep?.documents || []
+
+        const newDocumentsState: Record<string, DocumentUploadState> = {}
+
+        // Helper to get document state, prioritizing profileData
+        const getDocState = (docName: string, profileUrl: string | undefined) => {
+          const dashboardDoc = icegateStepDocuments.find((d) => d.name === docName)
+          const finalUrl = profileUrl || dashboardDoc?.url
+          const finalStatus = profileUrl ? "uploaded" : dashboardDoc?.status
+          return {
+            name: docName,
+            file: finalUrl ? ({} as File) : null,
+            uploaded: !!finalUrl,
+            url: finalUrl,
+            status: finalStatus || "pending",
+            tempFile: null,
+            tempUrl: null,
+          }
         }
+
+        // Handle IEC Certificate
+        newDocumentsState.iecCertificate = getDocState("iecCertificate", data.user.iecCertificate)
+
+        // Handle DSC Certificate
+        newDocumentsState.dscCertificate = getDocState("dscCertificate", data.user.dscCertificate)
+
+        // Handle Authorization Letter (conditional, shared)
+        newDocumentsState.authorizationLetter = getDocState("authorizationLetter", data.user.authorizationLetterUrl)
+
+        // Handle Bank Document (specific to ICEGATE, optional)
+        newDocumentsState.bankDocument = getDocState("bankDocument", data.user.bankDocumentUrl)
+
+        setDocuments(newDocumentsState)
       } catch (error) {
         console.error("Failed to fetch profile data:", error)
       }

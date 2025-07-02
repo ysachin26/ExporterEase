@@ -152,6 +152,13 @@ const DocumentUploadSection = ({
         {displayUrl ? (
           <div className="flex flex-col items-center justify-center gap-2">
             {getStatusDisplay(currentDocState.status, hasTempFile)}
+            {/* Add shared from previous registration message if applicable */}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <div className="flex items-center gap-1 text-blue-600 text-xs">
+                <Check className="h-3 w-3" />
+                <span>Shared from previous registration</span>
+              </div>
+            )}
             {displayUrl && (
               <Button
                 variant="link"
@@ -172,6 +179,15 @@ const DocumentUploadSection = ({
               >
                 <Upload className="h-3 w-3 mr-1" />{" "}
                 {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+              </Button>
+            )}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <Button
+                variant="link"
+                className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
+                onClick={handleButtonClick}
+              >
+                <Upload className="h-3 w-3 mr-1" /> Replace
               </Button>
             )}
           </div>
@@ -274,20 +290,30 @@ export default function DSCRegistration() {
         }
 
         // Pre-fill registration-specific documents from dashboard data
-        const dscStep = data.registrationSteps.find((step) => step.id === 7) // Assuming DSC is step 7
-        if (dscStep) {
-          const newDocumentsState: Record<string, DocumentUploadState> = {}
-          dscStep.documents.forEach((doc) => {
-            newDocumentsState[doc.name] = {
-              name: doc.name,
-              file: doc.url ? ({} as File) : null,
-              uploaded: !!doc.url,
-              url: doc.url,
-              status: doc.status,
-            }
-          })
-          setDocuments(newDocumentsState)
+        const dscStep = data.registrationSteps.find((step) => step.id === 7)
+        const dscStepDocuments = dscStep?.documents || []
+
+        const newDocumentsState: Record<string, DocumentUploadState> = {}
+
+        // Helper to get document state, prioritizing profileData
+        const getDocState = (docName: string, profileUrl: string | undefined) => {
+          const dashboardDoc = dscStepDocuments.find((d) => d.name === docName)
+          const finalUrl = profileUrl || dashboardDoc?.url
+          const finalStatus = profileUrl ? "uploaded" : dashboardDoc?.status
+          return {
+            name: docName,
+            file: finalUrl ? ({} as File) : null,
+            uploaded: !!finalUrl,
+            url: finalUrl,
+            status: finalStatus || "pending",
+            tempFile: null,
+            tempUrl: null,
+          }
         }
+
+        // Handle Authorization Letter (conditional, shared)
+        newDocumentsState.authorizationLetter = getDocState("authorizationLetter", data.user.authorizationLetterUrl)
+        setDocuments(newDocumentsState)
       } catch (error) {
         console.error("Failed to fetch profile data:", error)
       }

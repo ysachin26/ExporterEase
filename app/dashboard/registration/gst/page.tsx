@@ -37,6 +37,8 @@ interface DocumentUploadState {
   uploaded: boolean
   url?: string // To store the URL from DB
   status?: "pending" | "uploaded" | "verified" | "rejected" // Status from DB
+  tempFile?: File | null
+  tempUrl?: string
 }
 
 interface BankDetails {
@@ -47,6 +49,8 @@ interface BankDetails {
   cancelledCheque: File | null
   cancelledChequeUrl?: string // To store the URL from DB
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  tempCancelledCheque: File | null
+  tempCancelledChequeUrl?: string
   tempCancelledCheque: File | null
   tempCancelledChequeUrl?: string
 }
@@ -147,6 +151,8 @@ export default function GSTRegistration() {
     cancelledCheque: null,
     cancelledChequeUrl: "",
     cancelledChequeStatus: "pending",
+    tempCancelledCheque: null,
+    tempCancelledChequeUrl: "",
     tempCancelledCheque: null,
     tempCancelledChequeUrl: "",
   })
@@ -306,38 +312,49 @@ export default function GSTRegistration() {
         }))
 
         // Pre-fill registration-specific documents from dashboard data
-        const gstStep = data.registrationSteps.find((step) => step.id === 3) // Assuming GST is step 3
-        if (gstStep) {
-          const newDocumentsState: Record<string, DocumentUploadState> = {}
+        const gstStep = data.registrationSteps.find((step) => step.id === 3)
+        const gstStepDocuments = gstStep?.documents || []
 
-          gstStep.documents.forEach((doc) => {
-            // Skip shared documents as they're handled above
-            if (
-              ![
-                "authorizationLetter",
-                "partnershipDeed",
-                "certificateOfIncorporation",
-                "moaAoa",
-                "cancelledCheque",
-              ].includes(doc.name)
-            ) {
-              newDocumentsState[doc.name] = {
-                name: doc.name,
-                file: doc.url ? ({} as File) : null,
-                uploaded: !!doc.url,
-                url: doc.url,
-                status: doc.status,
-              }
-            }
-          })
-          setDocuments(newDocumentsState)
+        const newDocumentsState: Record<string, DocumentUploadState> = {}
 
-          // Determine premise type if documents are uploaded
-          if (gstStep.documents.some((d) => d.name === "rentAgreement" || d.name === "noc")) {
-            setPremiseType("rented")
-          } else if (gstStep.documents.some((d) => d.name === "propertyProof")) {
-            setPremiseType("owned")
+        // Helper to get document state, prioritizing profileData
+        const getDocState = (docName: string, profileUrl: string | undefined) => {
+          const dashboardDoc = gstStepDocuments.find((d) => d.name === docName)
+          const finalUrl = profileUrl || dashboardDoc?.url
+          const finalStatus = profileUrl ? "uploaded" : dashboardDoc?.status // If from profile, assume uploaded. Dashboard might have more specific status.
+          return {
+            name: docName,
+            file: finalUrl ? ({} as File) : null,
+            uploaded: !!finalUrl,
+            url: finalUrl,
+            status: finalStatus || "pending",
+            tempFile: null,
+            tempUrl: null,
           }
+        }
+
+        // Premise documents
+        newDocumentsState.rentAgreement = getDocState("rentAgreement", data.user.rentAgreementUrl)
+        newDocumentsState.electricityBill = getDocState("electricityBill", data.user.electricityBillUrl)
+        newDocumentsState.noc = getDocState("noc", data.user.nocUrl)
+        newDocumentsState.propertyProof = getDocState("propertyProof", data.user.propertyProofUrl)
+        newDocumentsState.electricityBillOwned = getDocState("electricityBillOwned", data.user.electricityBillOwnedUrl)
+        newDocumentsState.otherProof = getDocState("otherProof", data.user.otherProofUrl)
+
+        setDocuments(newDocumentsState)
+
+        // Determine premise type if documents are uploaded
+        if (
+          data.user.rentAgreementUrl ||
+          data.user.nocUrl ||
+          newDocumentsState.rentAgreement.url ||
+          newDocumentsState.noc.url
+        ) {
+          setPremiseType("rented")
+        } else if (data.user.propertyProofUrl || newDocumentsState.propertyProof.url) {
+          setPremiseType("owned")
+        } else if (data.user.otherProofUrl || newDocumentsState.otherProof.url) {
+          setPremiseType("other")
         }
       } catch (error) {
         console.error("Failed to fetch initial GST registration data:", error)

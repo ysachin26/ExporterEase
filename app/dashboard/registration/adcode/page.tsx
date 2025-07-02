@@ -181,6 +181,13 @@ const DocumentUploadSection = ({
         {displayUrl ? (
           <div className="flex flex-col items-center justify-center gap-2">
             {getStatusDisplay(currentDocState.status, hasTempFile)}
+            {/* Add shared from previous registration message if applicable */}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <div className="flex items-center gap-1 text-blue-600 text-xs">
+                <Check className="h-3 w-3" />
+                <span>Shared from previous registration</span>
+              </div>
+            )}
             {displayUrl && (
               <Button
                 variant="link"
@@ -201,6 +208,15 @@ const DocumentUploadSection = ({
               >
                 <Upload className="h-3 w-3 mr-1" />{" "}
                 {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+              </Button>
+            )}
+            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
+              <Button
+                variant="link"
+                className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
+                onClick={handleButtonClick}
+              >
+                <Upload className="h-3 w-3 mr-1" /> Replace
               </Button>
             )}
           </div>
@@ -319,28 +335,52 @@ export default function ADCodeRegistration() {
 
         // Pre-fill registration-specific documents from dashboard data
         const adCodeStep = data.registrationSteps.find((step) => step.id === 5)
-        if (adCodeStep) {
-          const newDocumentsState: Record<string, DocumentUploadState> = {}
-          const newBankDetailsState: BankDetails = { ...bankDetails }
+        const adCodeStepDocuments = adCodeStep?.documents || []
 
-          adCodeStep.documents.forEach((doc) => {
-            if (doc.name === "cancelledCheque") {
-              newBankDetailsState.cancelledChequeUrl = doc.url
-              newBankDetailsState.cancelledCheque = doc.url ? ({} as File) : null
-              newBankDetailsState.cancelledChequeStatus = doc.status
-            } else {
-              newDocumentsState[doc.name] = {
-                name: doc.name,
-                file: doc.url ? ({} as File) : null,
-                uploaded: !!doc.url,
-                url: doc.url,
-                status: doc.status,
-              }
-            }
-          })
-          setDocuments(newDocumentsState)
-          setBankDetails(newBankDetailsState)
+        const newDocumentsState: Record<string, DocumentUploadState> = {}
+        const newBankDetailsState: BankDetails = { ...bankDetails }
+
+        // Helper to get document state, prioritizing profileData
+        const getDocState = (docName: string, profileUrl: string | undefined) => {
+          const dashboardDoc = adCodeStepDocuments.find((d) => d.name === docName)
+          const finalUrl = profileUrl || dashboardDoc?.url
+          const finalStatus = profileUrl ? "uploaded" : dashboardDoc?.status
+          return {
+            name: docName,
+            file: finalUrl ? ({} as File) : null,
+            uploaded: !!finalUrl,
+            url: finalUrl,
+            status: finalStatus || "pending",
+            tempFile: null,
+            tempUrl: null,
+          }
         }
+
+        // Handle IEC Certificate
+        newDocumentsState.iecCertificate = getDocState("iecCertificate", data.user.iecCertificate)
+
+        // Handle DSC Certificate
+        newDocumentsState.dscCertificate = getDocState("dscCertificate", data.user.dscCertificate)
+
+        // Handle AD Code Letter from Bank (specific to AD Code)
+        newDocumentsState.adCodeLetterFromBank = getDocState("adCodeLetterFromBank", data.user.adCodeLetterFromBankUrl)
+
+        // Handle Authorization Letter (conditional, shared)
+        newDocumentsState.authorizationLetter = getDocState("authorizationLetter", data.user.authorizationLetterUrl)
+
+        // Handle Cancelled Cheque (shared, optional)
+        newBankDetailsState.cancelledChequeUrl =
+          data.user.cancelledChequeUrl || adCodeStepDocuments.find((d) => d.name === "cancelledCheque")?.url
+        newBankDetailsState.cancelledCheque = newBankDetailsState.cancelledChequeUrl ? ({} as File) : null
+        newBankDetailsState.cancelledChequeStatus =
+          (data.user.cancelledChequeUrl
+            ? "uploaded"
+            : adCodeStepDocuments.find((d) => d.name === "cancelledCheque")?.status) || "pending"
+        newBankDetailsState.tempCancelledCheque = null
+        newBankDetailsState.tempCancelledChequeUrl = null
+
+        setDocuments(newDocumentsState)
+        setBankDetails(newBankDetailsState)
       } catch (error) {
         console.error("Failed to fetch profile data:", error)
       }
