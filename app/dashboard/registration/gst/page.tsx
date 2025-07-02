@@ -597,7 +597,7 @@ export default function GSTRegistration() {
 
     if (allUploadsSuccessful) {
       // Mark the GST step as completed
-      const updateResult = await updateRegistrationStep(2, "completed") // Corrected stepId for GST
+      const updateResult = await updateRegistrationStep(2, "in-progress") // Corrected stepId for GST
       if (updateResult.success) {
         alert("All documents uploaded and form submitted successfully! Your GST application is submitted.")
         router.push("/dashboard/progress") // Redirect to progress page
