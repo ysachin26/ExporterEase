@@ -1,397 +1,435 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type React from "react"
+
+import { useEffect, useState } from "react"
+import { getDashboardData, updateRegistrationStep } from "@/app/actions"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { ArrowRight, CheckCircle, AlertCircle, Clock, BarChart3, TrendingUp, Calendar, FileText } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+import {
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  FileText,
+  Globe,
+  Key,
+  Truck,
+  Code,
+  UserPlus,
+  Bell,
+  Mail,
+  Upload,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import Link from "next/link"
+import { format } from "date-fns"
 
-// Helper component for progress card
-const ProgressCard = ({ title, current, total, color = "primary" }: any) => {
-  const percentage = Math.round((current / total) * 100)
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span>
-              {current} of {total} completed
-            </span>
-            <span className="text-primary font-medium">{percentage}%</span>
-          </div>
-          <Progress value={percentage} className="h-2" />
-        </div>
-      </CardContent>
-    </Card>
-  )
+// Map icon names to Lucide React components
+const iconMap: { [key: string]: React.ElementType } = {
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  FileText,
+  Globe,
+  Key,
+  Truck,
+  Code,
+  UserPlus,
+  Bell,
+  Mail,
+  Upload,
 }
 
-// Helper component for milestone cards
-const MilestoneCard = ({ milestone }: any) => {
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case "IN_PROGRESS":
-        return <Clock className="h-5 w-5 text-blue-500" />
-      case "FAILED":
-        return <AlertCircle className="h-5 w-5 text-red-500" />
-      default:
-        return <Clock className="h-5 w-5 text-slate-400" />
+interface RegistrationStep {
+  id: number
+  name: string
+  status: "pending" | "in-progress" | "completed" | "rejected"
+  icon: string
+  completedAt?: string | null
+}
+
+interface Notification {
+  id: string
+  title: string
+  message: string
+  type: "info" | "success" | "warning" | "error"
+  read: boolean
+  createdAt: string
+}
+
+interface DashboardData {
+  user: {
+    id: string
+    fullName: string
+    businessName: string
+    businessType: string
+    mobileNo: string
+    email: string
+    emailVerified: boolean
+    aadharCardUrl: string
+    panCardUrl: string
+    photographUrl: string
+    proofOfAddressUrl: string
+    authorizationLetterUrl: string
+    partnershipDeedUrl: string
+    llpAgreementUrl: string
+    certificateOfIncorporationUrl: string
+    moaAoaUrl: string
+    cancelledChequeUrl: string
+    iecCertificate: string
+    dscCertificate: string
+    gstCertificate: string
+    rentAgreementUrl: string
+    electricityBillUrl: string
+    nocUrl: string
+    propertyProofUrl: string
+    electricityBillOwnedUrl: string
+    otherProofUrl: string
+    adCodeLetterFromBankUrl: string
+    bankDocumentUrl: string
+  }
+  hasStartedRegistration: boolean
+  profileCompletion: number
+  registrationSteps: RegistrationStep[]
+  overallProgress: number
+  notifications: Notification[]
+  unreadNotificationCount: number
+  isProfileComplete: boolean
+}
+
+export default function ProgressPage() {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const data = await getDashboardData()
+        if (data) {
+          setDashboardData(data as DashboardData)
+        } else {
+          setError("Failed to fetch dashboard data.")
+        }
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err)
+        setError("An error occurred while fetching data.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDashboard()
+  }, [])
+
+  const handleUpdateStepStatus = async (stepId: number, status: string) => {
+    setLoading(true)
+    try {
+      const result = await updateRegistrationStep(stepId, status)
+      if (result.success) {
+        const updatedData = await getDashboardData() // Re-fetch to get latest state
+        if (updatedData) {
+          setDashboardData(updatedData as DashboardData)
+        }
+      } else {
+        setError(result.message)
+      }
+    } catch (err: any) {
+      setError(`Failed to update step: ${err.message}`)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return <Badge className="bg-green-500 text-white">Completed</Badge>
-      case "IN_PROGRESS":
-        return <Badge className="bg-blue-500 text-white">In Progress</Badge>
-      case "FAILED":
-        return <Badge className="bg-red-500 text-white">Failed</Badge>
-      default:
-        return <Badge className="bg-slate-400 text-white">Not Started</Badge>
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-100px)]">
+        <p>Loading progress...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-100px)]">
+        <p className="text-red-500">{error}</p>
+      </div>
+    )
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(10vh-100px)]">
+        <p>No dashboard data available.</p>
+      </div>
+    )
+  }
+
+  const { registrationSteps, overallProgress, notifications } = dashboardData
+
+  const nextPendingStep = registrationSteps.find((step) => step.status === "pending" || step.status === "in-progress")
+
+  // Define the mapping from step name to route
+  const stepRoutes: { [key: string]: string } = {
+    Registration: "/dashboard/profile", // Assuming registration is tied to profile completion
+    "GST Registration": "/dashboard/registration/gst",
+    "IEC Code": "/dashboard/registration/iec",
+    "DSC Registration": "/dashboard/registration/dsc",
+    "ICEGATE Registration": "/dashboard/registration/icegate",
+    "AD Code": "/dashboard/registration/adcode",
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-lg">{milestone.title}</CardTitle>
-          {getStatusBadge(milestone.status)}
-        </div>
-        <CardDescription>{milestone.description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(milestone.status)}
-            <span className="text-sm text-slate-600">
-              {milestone.status === "COMPLETED"
-                ? `Completed on ${new Date(milestone.completedDate).toLocaleDateString()}`
-                : milestone.status === "IN_PROGRESS"
-                  ? "In progress"
-                  : milestone.status === "FAILED"
-                    ? "Failed"
-                    : "Not started"}
-            </span>
+    <div className="container mx-auto px-4 py-8 md:px-6 lg:px-8">
+      <h1 className="text-3xl font-bold mb-2">Registration Progress</h1>
+      <p className="text-gray-500 dark:text-gray-400 mb-8">
+        Complete all the steps below to become an export-ready business
+      </p>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Overall Progress</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <Progress value={overallProgress} className="flex-1" />
+            <span className="text-lg font-semibold">{overallProgress}%</span>
           </div>
-          {milestone.nextAction && (
-            <Button asChild variant="outline" className="text-primary">
-              <Link href={milestone.actionUrl}>
-                {milestone.nextAction}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+        </CardContent>
+      </Card>
 
-export default function ProgressTracker() {
-  const [view, setView] = useState("overview")
-
-  // Mock data - replace with actual API calls
-  const progress = {
-    progressPercentage: 65,
-    registrationSteps: [
-      { name: "Profile Setup", status: "COMPLETED", isCompleted: true, isActive: false },
-      { name: "Document Upload", status: "COMPLETED", isCompleted: true, isActive: false },
-      { name: "GST Registration", status: "IN_PROGRESS", isCompleted: false, isActive: true },
-      { name: "IEC Registration", status: "PENDING", isCompleted: false, isActive: false },
-      { name: "Final Verification", status: "PENDING", isCompleted: false, isActive: false },
-    ],
-    nextStep: "Complete GST Registration",
-  }
-
-  const documents = [
-    { id: 1, name: "PAN Card", status: "VERIFIED" },
-    { id: 2, name: "Aadhaar Card", status: "VERIFIED" },
-    { id: 3, name: "Bank Statement", status: "PENDING" },
-    { id: 4, name: "Address Proof", status: "VERIFIED" },
-    { id: 5, name: "Business Certificate", status: "PENDING" },
-  ]
-
-  const registrations = [
-    {
-      type: "GST",
-      status: "IN_PROGRESS",
-      applicationDate: "2024-01-15",
-      completionDate: null,
-    },
-    {
-      type: "IEC",
-      status: "NOT_STARTED",
-      applicationDate: null,
-      completionDate: null,
-    },
-    {
-      type: "AD_CODE",
-      status: "NOT_STARTED",
-      applicationDate: null,
-      completionDate: null,
-    },
-  ]
-
-  // Calculate stats from data
-  const totalDocuments = documents.length
-  const verifiedDocuments = documents.filter((doc) => doc.status === "VERIFIED").length
-
-  const completedRegistrations = registrations.filter((reg) => reg.status === "COMPLETED").length
-  const totalRegistrations = registrations.length
-
-  // Prepare milestones for visualization
-  const milestones = [
-    {
-      title: "GST Registration",
-      description: "Register your business for Goods and Services Tax",
-      status: registrations.find((r) => r.type === "GST")?.status || "NOT_STARTED",
-      completedDate: registrations.find((r) => r.type === "GST")?.completionDate,
-      nextAction: registrations.find((r) => r.type === "GST")?.status !== "COMPLETED" ? "Continue" : null,
-      actionUrl: "/dashboard/registration/gst",
-      icon: <BarChart3 className="h-8 w-8 text-blue-500" />,
-    },
-    {
-      title: "IEC Registration",
-      description: "Obtain Import Export Code for international trade",
-      status: registrations.find((r) => r.type === "IEC")?.status || "NOT_STARTED",
-      completedDate: registrations.find((r) => r.type === "IEC")?.completionDate,
-      nextAction: registrations.find((r) => r.type === "IEC")?.status !== "COMPLETED" ? "Continue" : null,
-      actionUrl: "/dashboard/registration/iec",
-      icon: <TrendingUp className="h-8 w-8 text-green-500" />,
-    },
-    {
-      title: "AD Code Registration",
-      description: "Register for Authorized Dealer Code for forex transactions",
-      status: registrations.find((r) => r.type === "AD_CODE")?.status || "NOT_STARTED",
-      completedDate: registrations.find((r) => r.type === "AD_CODE")?.completionDate,
-      nextAction: registrations.find((r) => r.type === "AD_CODE")?.status !== "COMPLETED" ? "Continue" : null,
-      actionUrl: "/dashboard/registration/adcode",
-      icon: <Calendar className="h-8 w-8 text-purple-500" />,
-    },
-    {
-      title: "Document Verification",
-      description: "Upload and verify essential business documents",
-      status: totalDocuments > 0 ? (verifiedDocuments === totalDocuments ? "COMPLETED" : "IN_PROGRESS") : "NOT_STARTED",
-      completedDate: verifiedDocuments === totalDocuments ? new Date().toISOString() : null,
-      nextAction: verifiedDocuments !== totalDocuments ? "Upload Documents" : null,
-      actionUrl: "/dashboard/documents",
-      icon: <FileText className="h-8 w-8 text-orange-500" />,
-    },
-  ]
-
-  return (
-    <div className="container mx-auto py-6">
-      <h1 className="text-2xl font-bold mb-2">Progress Tracker</h1>
-      <p className="text-gray-600 mb-6">Track and visualize your export business registration progress</p>
-
-      <Tabs defaultValue={view} onValueChange={setView} className="mb-8">
-        <TabsList className="mb-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="milestones">Milestones</TabsTrigger>
+      <Tabs defaultValue="journey" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <TabsTrigger value="journey">Registration Journey</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications ({notifications.filter((n) => !n.read).length})</TabsTrigger>
+          <TabsTrigger value="next-steps">Next Steps</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            <ProgressCard
-              title="Overall Registration Progress"
-              current={progress.progressPercentage}
-              total={100}
-              color="primary"
-            />
-            <ProgressCard title="Documents Uploaded" current={verifiedDocuments} total={totalDocuments} color="blue" />
-            <ProgressCard
-              title="Registrations Completed"
-              current={completedRegistrations}
-              total={totalRegistrations}
-              color="green"
-            />
-          </div>
-
+        <TabsContent value="journey" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Registration Journey</CardTitle>
-              <CardDescription>Your journey towards becoming export-ready</CardDescription>
+              <CardTitle>Your Registration Journey</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div className="relative">
-                  <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200" />
-                  {progress.registrationSteps.map((step: any, index: number) => (
-                    <div key={index} className="relative pl-10 pb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                {registrationSteps.map((step) => {
+                  const IconComponent = iconMap[step.icon] || AlertCircle
+                  const isCompleted = step.status === "completed"
+                  const isInProgress = step.status === "in-progress"
+                  const isPending = step.status === "pending"
+                  const isRejected = step.status === "rejected"
+
+                  return (
+                    <Link href={stepRoutes[step.name] || "#"} key={step.id}>
                       <div
-                        className={`absolute left-0 top-1 w-10 h-10 rounded-full flex items-center justify-center ${
-                          step.isCompleted
-                            ? "bg-green-100 text-green-600"
-                            : step.isActive
-                              ? "bg-blue-100 text-blue-600"
-                              : "bg-gray-100 text-gray-400"
-                        }`}
+                        className={cn(
+                          "flex flex-col items-center p-4 rounded-lg border transition-all duration-200",
+                          isCompleted && "border-green-500 bg-green-50",
+                          isInProgress && "border-blue-500 bg-blue-50",
+                          isRejected && "border-red-500 bg-red-50",
+                          isPending && "border-gray-200 bg-gray-50 hover:border-gray-300",
+                          "dark:bg-gray-800 dark:border-gray-700 dark:hover:border-gray-600",
+                          isCompleted && "dark:bg-green-950 dark:border-green-700",
+                          isInProgress && "dark:bg-blue-950 dark:border-blue-700",
+                          isRejected && "dark:bg-red-950 dark:border-red-700",
+                        )}
                       >
-                        {step.isCompleted ? (
-                          <CheckCircle className="h-5 w-5" />
-                        ) : (
-                          <span className="text-sm font-medium">{index + 1}</span>
+                        <div
+                          className={cn(
+                            "w-12 h-12 rounded-full flex items-center justify-center mb-2",
+                            isCompleted && "bg-green-100 text-green-600 dark:bg-green-800 dark:text-green-300",
+                            isInProgress && "bg-blue-100 text-blue-600 dark:bg-blue-800 dark:text-blue-300",
+                            isRejected && "bg-red-100 text-red-600 dark:bg-red-800 dark:text-red-300",
+                            isPending && "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+                          )}
+                        >
+                          <IconComponent className="w-6 h-6" />
+                        </div>
+                        <p className="font-medium text-center">{step.name}</p>
+                        <p
+                          className={cn(
+                            "text-sm",
+                            isCompleted && "text-green-600 dark:text-green-300",
+                            isInProgress && "text-blue-600 dark:text-blue-300",
+                            isRejected && "text-red-600 dark:text-red-300",
+                            isPending && "text-gray-500 dark:text-gray-400",
+                          )}
+                        >
+                          {step.status.charAt(0).toUpperCase() + step.status.slice(1)}
+                        </p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="timeline" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Activity Timeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative pl-8">
+                {registrationSteps
+                  .filter((step) => step.completedAt)
+                  .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())
+                  .map((step, index) => (
+                    <div key={step.id} className="mb-6 flex items-start">
+                      <div className="absolute left-0 flex h-full flex-col items-center">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
+                          <CheckCircle className="h-4 w-4" />
+                        </div>
+                        {index < registrationSteps.filter((s) => s.completedAt).length - 1 && (
+                          <div className="h-full w-px bg-gray-200 dark:bg-gray-700" />
                         )}
                       </div>
-                      <h3 className="text-lg font-medium">{step.name}</h3>
-                      <p className="text-gray-600 mt-1">
-                        {step.status === "COMPLETED"
-                          ? "Completed"
-                          : step.status === "IN_PROGRESS"
-                            ? "In Progress"
-                            : "Pending"}
-                      </p>
+                      <div className="ml-4 flex-1">
+                        <h3 className="font-semibold">{step.name} Completed</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {step.completedAt ? format(new Date(step.completedAt), "PPP") : "N/A"}
+                        </p>
+                      </div>
                     </div>
                   ))}
-                </div>
-
-                {progress.nextStep && progress.nextStep !== "All steps completed" && (
-                  <div className="flex justify-end">
-                    <Button className="bg-primary hover:bg-primary/90">
-                      Continue Your Journey <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </div>
+                {notifications.length > 0 && (
+                  <>
+                    <Separator className="my-4" />
+                    <h3 className="font-semibold mb-4">Notifications</h3>
+                    {notifications
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((notification) => {
+                        const NotificationIcon =
+                          iconMap[
+                            notification.type === "success"
+                              ? "CheckCircle"
+                              : notification.type === "error"
+                                ? "AlertCircle"
+                                : "Bell"
+                          ] || Bell
+                        return (
+                          <div key={notification.id} className="mb-4 flex items-start">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                              <NotificationIcon className="h-4 w-4" />
+                            </div>
+                            <div className="ml-4 flex-1">
+                              <h4 className="font-medium">{notification.title}</h4>
+                              <p className="text-sm text-gray-700 dark:text-gray-300">{notification.message}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {format(new Date(notification.createdAt), "PPP p")}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </>
+                )}
+                {registrationSteps.filter((step) => step.completedAt).length === 0 && notifications.length === 0 && (
+                  <p className="text-gray-500 dark:text-gray-400">No activity yet.</p>
                 )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="milestones" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {milestones.map((milestone, index) => (
-              <MilestoneCard key={index} milestone={milestone} />
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="timeline" className="space-y-6">
+        <TabsContent value="notifications" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Registration Timeline</CardTitle>
-              <CardDescription>Chronological view of your registration progress</CardDescription>
+              <CardTitle>Notifications</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="relative">
-                <div className="absolute left-7 top-0 bottom-0 w-0.5 bg-gray-200" />
-
-                {/* Timeline events */}
-                <div className="space-y-8">
-                  {/* Account Creation */}
-                  <div className="relative pl-16">
-                    <div className="absolute left-0 top-1 w-14 h-14 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                      <Calendar className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-lg font-medium">Account Created</h3>
-                    <p className="text-gray-600 text-sm mt-1">Started your export journey with GoFarmlyConnect</p>
-                    <p className="text-gray-400 text-xs mt-2">
-                      {new Date().toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </p>
-                  </div>
-
-                  {/* Document Uploads */}
-                  {documents && documents.length > 0 && (
-                    <div className="relative pl-16">
-                      <div className="absolute left-0 top-1 w-14 h-14 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-                        <FileText className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-lg font-medium">Documents Uploaded</h3>
-                      <p className="text-gray-600 text-sm mt-1">
-                        Uploaded {documents.length} essential document{documents.length !== 1 ? "s" : ""}
-                      </p>
-                      <p className="text-gray-400 text-xs mt-2">
-                        {new Date().toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Registration Events */}
-                  {registrations &&
-                    registrations
-                      .filter((reg: any) => reg.status !== "NOT_STARTED")
-                      .map((reg: any, index: number) => (
-                        <div key={index} className="relative pl-16">
-                          <div
-                            className={`absolute left-0 top-1 w-14 h-14 rounded-full flex items-center justify-center ${
-                              reg.status === "COMPLETED"
-                                ? "bg-green-100 text-green-600"
-                                : reg.status === "IN_PROGRESS"
-                                  ? "bg-blue-100 text-blue-600"
-                                  : "bg-red-100 text-red-600"
-                            }`}
-                          >
-                            {reg.status === "COMPLETED" ? (
-                              <CheckCircle className="h-6 w-6" />
-                            ) : reg.status === "IN_PROGRESS" ? (
-                              <Clock className="h-6 w-6" />
-                            ) : (
-                              <AlertCircle className="h-6 w-6" />
-                            )}
+              {notifications.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400">No notifications yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {notifications
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map((notification) => {
+                      const NotificationIcon =
+                        iconMap[
+                          notification.type === "success"
+                            ? "CheckCircle"
+                            : notification.type === "error"
+                              ? "AlertCircle"
+                              : "Bell"
+                        ] || Bell
+                      return (
+                        <div
+                          key={notification.id}
+                          className={cn(
+                            "flex items-start p-4 rounded-lg border",
+                            !notification.read
+                              ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-700"
+                              : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700",
+                          )}
+                        >
+                          <div className="mr-3">
+                            <NotificationIcon
+                              className={cn(
+                                "h-5 w-5",
+                                notification.type === "success" && "text-green-500",
+                                notification.type === "warning" && "text-yellow-500",
+                                notification.type === "error" && "text-red-500",
+                                notification.type === "info" && "text-blue-500",
+                              )}
+                            />
                           </div>
-                          <h3 className="text-lg font-medium">
-                            {reg.type === "GST"
-                              ? "GST Registration"
-                              : reg.type === "IEC"
-                                ? "IEC Registration"
-                                : reg.type === "AD_CODE"
-                                  ? "AD Code Registration"
-                                  : reg.type}
-                          </h3>
-                          <p className="text-gray-600 text-sm mt-1">
-                            {reg.status === "COMPLETED"
-                              ? "Successfully completed registration"
-                              : reg.status === "IN_PROGRESS"
-                                ? "Registration in progress"
-                                : "Registration attempt failed"}
-                          </p>
-                          <p className="text-gray-400 text-xs mt-2">
-                            {reg.applicationDate
-                              ? new Date(reg.applicationDate).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                })
-                              : new Date().toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                })}
-                          </p>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{notification.title}</h3>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">{notification.message}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {format(new Date(notification.createdAt), "PPP p")}
+                            </p>
+                          </div>
+                          {/* Add a button to mark as read if needed */}
                         </div>
-                      ))}
-
-                  {/* Next Step */}
-                  {progress && progress.nextStep && progress.nextStep !== "All steps completed" && (
-                    <div className="relative pl-16 opacity-50">
-                      <div className="absolute left-0 top-1 w-14 h-14 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">
-                        <ArrowRight className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-lg font-medium">Next: {progress.nextStep}</h3>
-                      <p className="text-gray-600 text-sm mt-1">Your next step in the export registration journey</p>
-                      <p className="text-gray-400 text-xs mt-2">Upcoming</p>
-                    </div>
-                  )}
+                      )
+                    })}
                 </div>
-              </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="next-steps" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>What's Next?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {nextPendingStep ? (
+                <div className="space-y-4">
+                  <p className="text-lg">
+                    Your next step is: <span className="font-semibold">{nextPendingStep.name}</span>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    To continue your registration journey, please proceed with the "{nextPendingStep.name}" process.
+                  </p>
+                  <Link href={stepRoutes[nextPendingStep.name] || "#"}>
+                    <Button className="mt-4">Go to {nextPendingStep.name}</Button>
+                  </Link>
+                  {/* Example of manually marking a step as complete for testing */}
+                  {/* <Button
+                    onClick={() => handleUpdateStepStatus(nextPendingStep.id, "completed")}
+                    className="mt-4 ml-2"
+                    variant="outline"
+                  >
+                    Mark as Completed (Dev Only)
+                  </Button> */}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">All steps completed!</h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Congratulations! You have completed all the necessary registration steps.
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    You are now an export-ready business with GoFarmlyConnect.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

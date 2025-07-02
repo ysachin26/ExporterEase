@@ -29,12 +29,12 @@ export interface IDashboard extends Document {
   hasStartedRegistration: boolean
   registrationSteps: Types.DocumentArray<IRegistrationStep>
   notifications: Types.DocumentArray<INotification>
-  overallProgress: number
+  // overallProgress: number; // Removed from schema
   profileCompletion: {
-    completionPercentage: number
+    // completionPercentage: number; // Removed from schema
   }
   // Methods
-  calculateOverallProgress(): void
+  // calculateOverallProgress(): void; // Removed from schema methods
   addNotification(title: string, message: string, type: string): INotification
 }
 
@@ -68,20 +68,39 @@ const DashboardSchema: Schema = new Schema(
     hasStartedRegistration: { type: Boolean, default: false },
     registrationSteps: [RegistrationStepSchema],
     notifications: [NotificationSchema],
-    overallProgress: { type: Number, default: 0 },
+    // overallProgress: { type: Number, default: 0 }, // Removed
     profileCompletion: {
-      completionPercentage: { type: Number, default: 0 }, // Only store percentage here
+      // completionPercentage: { type: Number, default: 0 }, // Removed
     },
   },
   { timestamps: true },
 )
-  
-// Methods for Dashboard Schema
-DashboardSchema.methods.calculateOverallProgress = function () {
-  const completedSteps = this.registrationSteps.filter((step: any) => step.status === "completed").length
-  this.overallProgress =
-    this.registrationSteps.length > 0 ? Math.round((completedSteps / this.registrationSteps.length) * 100) : 0
-}
+
+// Pre-save hook to initialize registration steps if they are not set
+DashboardSchema.pre("save", function (next) {
+  if (this.isNew || (this.isModified("hasStartedRegistration") && this.hasStartedRegistration)) {
+    // Initialize registration steps if they are not already set or if registration is just starting
+    if (!this.registrationSteps || this.registrationSteps.length === 0 || this.isNew) {
+      this.registrationSteps = [
+        { id: 1, name: "Registration", status: "pending", icon: "UserPlus", documents: [] },
+        { id: 2, name: "GST Registration", status: "pending", icon: "FileText", documents: [] },
+        { id: 3, name: "IEC Code", status: "pending", icon: "Globe", documents: [] },
+        { id: 4, name: "DSC Registration", status: "pending", icon: "Key", documents: [] },
+        { id: 5, name: "ICEGATE Registration", status: "pending", icon: "Truck", documents: [] },
+        { id: 6, name: "AD Code", status: "pending", icon: "Code", documents: [] },
+      ] as any // Cast to any to bypass strict type checking for subdocuments
+    }
+  }
+  // Removed call to calculateOverallProgress() as it's no longer a schema method
+  next()
+})
+
+// Removed calculateOverallProgress method from schema methods
+// DashboardSchema.methods.calculateOverallProgress = function () {
+//   const completedSteps = this.registrationSteps.filter((step: any) => step.status === "completed").length
+//   this.overallProgress =
+//     this.registrationSteps.length > 0 ? Math.round((completedSteps / this.registrationSteps.length) * 100) : 0
+// }
 
 DashboardSchema.methods.addNotification = function (title: string, message: string, type: string) {
   const newNotification = { title, message, type, read: false, createdAt: new Date() }

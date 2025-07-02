@@ -162,25 +162,19 @@ export async function logout() {
 
 // Create initial dashboard data for new user
 async function createInitialDashboard(userId: mongoose.Types.ObjectId, fullName: string) {
-  const initialSteps = [
-    { id: 1, name: "Registration", status: "completed", icon: "CheckCircle" },
-    { id: 2, name: "Document Upload", status: "pending", icon: "Clock" },
-    { id: 3, name: "GST Registration", status: "pending", icon: "AlertCircle" },
-    { id: 4, name: "IEC Code", status: "pending", icon: "AlertCircle" },
-    { id: 5, name: "AD Code", status: "pending", icon: "AlertCircle" },
-  ]
-
   const dashboard = new Dashboard({
     userId,
     hasStartedRegistration: true,
-    registrationSteps: initialSteps,
-    profileCompletion: {
-      completionPercentage: 0,
-    },
+    // registrationSteps will be initialized by the pre('save') hook in Dashboard model
+    profileCompletion: {}, // Initialize as empty object, percentage calculated dynamically
   })
 
-  // Calculate initial progress
-  dashboard.calculateOverallProgress()
+  // Explicitly mark the "Registration" step as completed
+  const registrationStep = dashboard.registrationSteps.find((step) => step.id === 1)
+  if (registrationStep) {
+    registrationStep.status = "completed"
+    registrationStep.completedAt = new Date()
+  }
 
   // Add welcome notification
   dashboard.addNotification(
@@ -208,7 +202,7 @@ const calculateProfileCompletionPercentage = (user: any) => {
   if (user.photographUrl && user.photographUrl.trim() !== "") completedFields++
   if (user.proofOfAddressUrl && user.proofOfAddressUrl.trim() !== "") completedFields++
 
-  return Math.round((completedFields / totalFields) * 100)
+  return Math.floor((completedFields / totalFields) * 100) // Use Math.floor for profile completion
 }
 
 // Get dashboard data for a user
@@ -244,12 +238,14 @@ export async function getDashboardData() {
     dashboard = await Dashboard.findOne({ userId: user._id }).lean()
   }
 
+  // Calculate overall progress dynamically
   const completedStepsCount = dashboard.registrationSteps.filter((step: any) => step.status === "completed").length
   const overallProgress =
     dashboard.registrationSteps.length > 0
-      ? Math.round((completedStepsCount / dashboard.registrationSteps.length) * 100)
+      ? Math.floor((completedStepsCount / dashboard.registrationSteps.length) * 100) // Use Math.floor here
       : 0
 
+  // Calculate profile completion percentage dynamically
   const profileCompletionPercentage = calculateProfileCompletionPercentage(user)
 
   const transformedRegistrationSteps = dashboard.registrationSteps.map((step: any) => ({
@@ -312,9 +308,9 @@ export async function getDashboardData() {
       bankDocumentUrl: user.bankDocumentUrl || "",
     },
     hasStartedRegistration: dashboard.hasStartedRegistration,
-    profileCompletion: profileCompletionPercentage,
+    profileCompletion: profileCompletionPercentage, // Dynamically calculated
     registrationSteps: transformedRegistrationSteps,
-    overallProgress: overallProgress,
+    overallProgress: overallProgress, // Dynamically calculated
     notifications: transformedNotifications,
     unreadNotificationCount: unreadNotificationCount,
     isProfileComplete: profileCompletionPercentage === 100,
@@ -463,17 +459,10 @@ export async function uploadDocument(formData: FormData) {
       console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
     }
 
-    // Update dashboard completion percentage for profile documents
-    const dashboard = await Dashboard.findOne({ userId: user._id })
-    if (dashboard) {
-      dashboard.profileCompletion.completionPercentage = calculateProfileCompletionPercentage(user)
-      await dashboard.save()
-    }
-
     return {
       success: true,
       fileUrl: fileUrl,
-      completionPercentage: calculateProfileCompletionPercentage(user),
+      completionPercentage: calculateProfileCompletionPercentage(user), // Still return for client-side immediate update
     }
   } catch (error: any) {
     console.error("File upload error:", error)
@@ -496,15 +485,9 @@ export async function updateProfileCompletion(field: string, value: boolean | st
 
   await user.save()
 
-  const dashboard = await Dashboard.findOne({ userId: user._id })
-  if (dashboard) {
-    dashboard.profileCompletion.completionPercentage = calculateProfileCompletionPercentage(user)
-    await dashboard.save()
-  }
-
   return {
     success: true,
-    completionPercentage: calculateProfileCompletionPercentage(user),
+    completionPercentage: calculateProfileCompletionPercentage(user), // Still return for client-side immediate update
   }
 }
 
@@ -529,12 +512,21 @@ export async function updateRegistrationStep(stepId: number, status: string) {
     dashboard.addNotification("Step Completed!", `${step.name} has been completed successfully.`, "success")
   }
 
-  dashboard.calculateOverallProgress()
   await dashboard.save()
+
+  // Re-fetch dashboard data to get the latest dynamically calculated overall progress
+  const updatedDashboard = await Dashboard.findOne({ userId: user._id }).lean()
+  const updatedOverallProgress = updatedDashboard
+    ? Math.floor(
+        (updatedDashboard.registrationSteps.filter((s: any) => s.status === "completed").length /
+          updatedDashboard.registrationSteps.length) *
+          100,
+      )
+    : 0
 
   return {
     success: true,
-    overallProgress: dashboard.overallProgress,
+    overallProgress: updatedOverallProgress, // Return the dynamically calculated value
   }
 }
 
@@ -576,21 +568,17 @@ export async function verifyEmail(email: string) {
     user.emailVerified = true
     await user.save()
 
-    // Update dashboard completion percentage
+    // Add notification for email verification
     const dashboard = await Dashboard.findOne({ userId: user._id })
     if (dashboard) {
-      dashboard.profileCompletion.completionPercentage = calculateProfileCompletionPercentage(user)
-
-      // Add notification for email verification
       dashboard.addNotification("Email Verified!", `Your email ${email} has been successfully verified.`, "success")
-
       await dashboard.save()
     }
 
     return {
       success: true,
       message: "Email verified successfully!",
-      completionPercentage: calculateProfileCompletionPercentage(user),
+      completionPercentage: calculateProfileCompletionPercentage(user), // Still return for client-side immediate update
     }
   } catch (error: any) {
     console.error("Email verification error:", error)
