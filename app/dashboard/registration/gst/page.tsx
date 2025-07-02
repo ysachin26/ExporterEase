@@ -28,16 +28,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getDashboardData, uploadDocument } from "@/app/actions"
-import { updateProfileCompletion } from "@/app/actions" // Import updateProfileCompletion
+import { updateProfileCompletion, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
 import { useRouter } from "next/navigation" // Import useRouter for navigation
 
 interface DocumentUploadState {
   name: string
-  file: File | null
+  file: File | null // This will represent the *uploaded* file, or null if not yet uploaded
   uploaded: boolean
   url?: string // To store the URL from DB
   status?: "pending" | "uploaded" | "verified" | "rejected" // Status from DB
-  tempFile?: File | null
+  tempFile?: File | null // New: for temporary local storage
   tempUrl?: string
 }
 
@@ -46,11 +46,9 @@ interface BankDetails {
   bankName: string
   branchName: string
   ifscCode: string
-  cancelledCheque: File | null
+  cancelledCheque: File | null // This will represent the *uploaded* file, or null if not yet uploaded
   cancelledChequeUrl?: string // To store the URL from DB
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
-  tempCancelledCheque: File | null
-  tempCancelledChequeUrl?: string
   tempCancelledCheque: File | null
   tempCancelledChequeUrl?: string
 }
@@ -153,8 +151,6 @@ export default function GSTRegistration() {
     cancelledChequeStatus: "pending",
     tempCancelledCheque: null,
     tempCancelledChequeUrl: "",
-    tempCancelledCheque: null,
-    tempCancelledChequeUrl: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [businessDocuments, setBusinessDocuments] = useState<BusinessDocuments>({
@@ -202,7 +198,7 @@ export default function GSTRegistration() {
   })
 
   const [isSaving, setIsSaving] = useState(false) // Declare isSaving state
-  const [onUpdate, setOnUpdate] = useState(() => () => {}) // Declare onUpdate state
+  // const [onUpdate, setOnUpdate] = useState(() => () => {}) // Removed as it's not used
 
   // Refs for file inputs
   const rentAgreementRef = useRef<HTMLInputElement>(null)
@@ -312,7 +308,7 @@ export default function GSTRegistration() {
         }))
 
         // Pre-fill registration-specific documents from dashboard data
-        const gstStep = data.registrationSteps.find((step) => step.id === 3)
+        const gstStep = data.registrationSteps.find((step) => step.id === 2) // Corrected stepId for GST
         const gstStepDocuments = gstStep?.documents || []
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
@@ -457,18 +453,18 @@ export default function GSTRegistration() {
     return total === 0 ? 0 : Math.round((completed / total) * 100)
   }
 
-  const handleStageFileUpload = (docType: string, file: File | null) => {
+  const handleStageFileUpload = (docKey: string, file: File | null) => {
     if (!file) return
 
     // Revoke previous URL if exists for this type
-    if (stagedFiles[docType]?.previewUrl) {
-      URL.revokeObjectURL(stagedFiles[docType]?.previewUrl!)
+    if (stagedFiles[docKey]?.previewUrl) {
+      URL.revokeObjectURL(stagedFiles[docKey]?.previewUrl!)
     }
 
     const previewUrl = URL.createObjectURL(file)
     setStagedFiles((prev) => ({
       ...prev,
-      [docType]: { file, previewUrl },
+      [docKey]: { file, previewUrl },
     }))
   }
 
@@ -499,19 +495,18 @@ export default function GSTRegistration() {
   }
 
   const handleSubmit = async () => {
+    if (progress < 100) {
+      alert("Please complete all required fields and upload all necessary documents.")
+      return
+    }
+
     // First, update text fields (if any are directly editable on this page)
-    // For GST, only natureOfBusiness and businessName are directly editable
     await updateProfileCompletion("natureOfBusiness", businessDetails.natureOfBusiness)
     await updateProfileCompletion("businessName", businessDetails.businessName)
-    // New: Update otherPremiseDescription if premiseType is 'other'
     if (premiseType === "other") {
       await updateProfileCompletion("otherPremiseDescription", otherPremiseDescription)
     }
 
-    // You might also want to save bank details if they are considered part of the "profile"
-    // For now, assuming bank details are handled as part of document uploads or a separate action.
-
-    // Then, upload all staged files
     const filesToUpload: { type: string; file: File }[] = []
 
     // Collect files from `stagedFiles`
@@ -541,55 +536,57 @@ export default function GSTRegistration() {
     const updatedBusinessDocuments: BusinessDocuments = { ...businessDocuments }
     const updatedBankDetails: BankDetails = { ...bankDetails }
 
-    for (const { type, file } of filesToUpload) {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("documentType", type)
-      formData.append("stepId", "3") // GST Registration step ID
+    if (filesToUpload.length > 0) {
+      for (const { type, file } of filesToUpload) {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("documentType", type)
+        formData.append("stepId", "2") // Corrected stepId for GST
 
-      try {
-        const result = await uploadDocument(formData)
-        if (result.success) {
-          // Update the main state variables with the new URL and status
-          if (type === "cancelledCheque") {
-            updatedBankDetails.cancelledChequeUrl = result.fileUrl
-            updatedBankDetails.cancelledChequeStatus = "uploaded"
-            updatedBankDetails.tempCancelledCheque = null
-            updatedBankDetails.tempCancelledChequeUrl = null
-          } else if (
-            type === "authorizationLetter" ||
-            type === "partnershipDeed" ||
-            type === "certificateOfIncorporation" ||
-            type === "moaAoa"
-          ) {
-            ;(updatedBusinessDocuments as any)[`${type}Url`] = result.fileUrl
-            ;(updatedBusinessDocuments as any)[`${type}Status`] = "uploaded"
-          } else {
-            // This handles rentAgreement, electricityBill, noc, propertyProof, electricityBillOwned, and now otherProof
-            updatedDocuments[type] = {
-              name: file.name,
-              file: file,
-              uploaded: true,
-              url: result.fileUrl,
-              status: "uploaded",
+        try {
+          const result = await uploadDocument(formData)
+          if (result.success) {
+            // Update the main state variables with the new URL and status
+            if (type === "cancelledCheque") {
+              updatedBankDetails.cancelledChequeUrl = result.fileUrl
+              updatedBankDetails.cancelledChequeStatus = "uploaded"
+              updatedBankDetails.tempCancelledCheque = null
+              updatedBankDetails.tempCancelledChequeUrl = null
+            } else if (
+              type === "authorizationLetter" ||
+              type === "partnershipDeed" ||
+              type === "certificateOfIncorporation" ||
+              type === "moaAoa"
+            ) {
+              ;(updatedBusinessDocuments as any)[`${type}Url`] = result.fileUrl
+              ;(updatedBusinessDocuments as any)[`${type}Status`] = "uploaded"
+            } else {
+              // This handles rentAgreement, electricityBill, noc, propertyProof, electricityBillOwned, and now otherProof
+              updatedDocuments[type] = {
+                name: file.name,
+                file: file,
+                uploaded: true,
+                url: result.fileUrl,
+                status: "uploaded",
+              }
             }
+            // Clear the staged file after successful upload
+            handleRemoveStagedFile(
+              type,
+              (document.getElementById(type) as HTMLInputElement)?.files?.[0]
+                ? (document.getElementById(type) as HTMLInputElement)
+                : (null as any),
+            ) // Pass ref if available
+          } else {
+            console.error(`Upload of ${type} failed:`, result.message)
+            allUploadsSuccessful = false
           }
-          // Clear the staged file after successful upload
-          handleRemoveStagedFile(
-            type,
-            (document.getElementById(type) as HTMLInputElement)?.files?.[0]
-              ? (document.getElementById(type) as HTMLInputElement)
-              : (null as any),
-          ) // Pass ref if available
-        } else {
-          console.error(`Upload of ${type} failed:`, result.message)
+        } catch (error) {
+          console.error(`Upload error for ${type}:`, error)
           allUploadsSuccessful = false
+        } finally {
+          setUploadingStates((prev) => ({ ...prev, [type]: false }))
         }
-      } catch (error) {
-        console.error(`Upload error for ${type}:`, error)
-        allUploadsSuccessful = false
-      } finally {
-        setUploadingStates((prev) => ({ ...prev, [type]: false }))
       }
     }
 
@@ -599,13 +596,16 @@ export default function GSTRegistration() {
     setIsSaving(false)
 
     if (allUploadsSuccessful) {
-      // Proceed with final form submission logic or navigate
-      console.log("All documents uploaded and form submitted successfully!")
-      onUpdate() // Notify parent to re-fetch dashboard data
-      router.push("/dashboard/success") // Navigate to a success page or dashboard
+      // Mark the GST step as completed
+      const updateResult = await updateRegistrationStep(2, "completed") // Corrected stepId for GST
+      if (updateResult.success) {
+        alert("All documents uploaded and form submitted successfully! Your GST application is submitted.")
+        router.push("/dashboard/progress") // Redirect to progress page
+      } else {
+        alert(`GST application submitted, but failed to update step status: ${updateResult.message}`)
+      }
     } else {
-      console.error("Some uploads failed. Please check the console for details.")
-      // Show a general error message to the user
+      alert("Some uploads failed. Please check the console for details.")
     }
   }
 

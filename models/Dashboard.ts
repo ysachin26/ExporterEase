@@ -82,7 +82,7 @@ DashboardSchema.pre("save", function (next) {
     // Initialize registration steps if they are not already set or if registration is just starting
     if (!this.registrationSteps || this.registrationSteps.length === 0 || this.isNew) {
       this.registrationSteps = [
-        { id: 1, name: "Registration", status: "pending", icon: "UserPlus", documents: [] },
+        { id: 1, name: "Registration", status: "completed", icon: "UserPlus", documents: [] },
         { id: 2, name: "GST Registration", status: "pending", icon: "FileText", documents: [] },
         { id: 3, name: "IEC Code", status: "pending", icon: "Globe", documents: [] },
         { id: 4, name: "DSC Registration", status: "pending", icon: "Key", documents: [] },

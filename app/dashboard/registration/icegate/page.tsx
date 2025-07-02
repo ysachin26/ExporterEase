@@ -24,7 +24,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument } from "@/app/actions"
+import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { useRouter } from "next/navigation" // Import useRouter
 import type React from "react"
 
 interface DocumentUploadState {
@@ -34,7 +35,7 @@ interface DocumentUploadState {
   url?: string
   status?: "pending" | "uploaded" | "verified" | "rejected"
   tempFile?: File | null
-  tempUrl?: string | null
+  tempUrl?: string
 }
 
 interface ProfileData {
@@ -271,6 +272,7 @@ export default function ICEGATERegistration() {
     branchName: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -312,7 +314,7 @@ export default function ICEGATERegistration() {
         })
 
         // Pre-fill registration-specific documents from dashboard data
-        const icegateStep = data.registrationSteps.find((step) => step.id === 6)
+        const icegateStep = data.registrationSteps.find((step) => step.id === 5) // Corrected stepId for ICEGATE
         const icegateStepDocuments = icegateStep?.documents || []
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
@@ -479,54 +481,57 @@ export default function ICEGATERegistration() {
       }
     }
 
-    if (documentsToUpload.length === 0) {
-      alert("No new documents to upload or all documents already processed. Proceeding with final form submission.")
-      console.log("Final form submission logic would go here.")
-      return
-    }
-
     let allUploadsSuccessful = true
-    for (const docInfo of documentsToUpload) {
-      const formData = new FormData()
-      formData.append("file", docInfo.file)
-      formData.append("documentType", docInfo.docType)
-      formData.append("stepId", "6") // ICEGATE Registration step ID
+    if (documentsToUpload.length > 0) {
+      for (const docInfo of documentsToUpload) {
+        const formData = new FormData()
+        formData.append("file", docInfo.file)
+        formData.append("documentType", docInfo.docType)
+        formData.append("stepId", "5") // Corrected stepId for ICEGATE
 
-      try {
-        const result = await uploadDocument(formData)
-        if (result.success) {
-          setDocuments((prev) => ({
-            ...prev,
-            [docInfo.docType]: {
-              ...prev[docInfo.docType],
-              url: result.fileUrl,
-              status: "uploaded",
-              tempFile: null,
-              tempUrl: null,
-            },
-          }))
-          console.log(`Successfully uploaded ${docInfo.docType}`)
-        } else {
+        try {
+          const result = await uploadDocument(formData)
+          if (result.success) {
+            setDocuments((prev) => ({
+              ...prev,
+              [docInfo.docType]: {
+                ...prev[docInfo.docType],
+                url: result.fileUrl,
+                status: "uploaded",
+                tempFile: null,
+                tempUrl: null,
+              },
+            }))
+            console.log(`Successfully uploaded ${docInfo.docType}`)
+          } else {
+            allUploadsSuccessful = false
+            console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+            setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
+          }
+        } catch (error) {
           allUploadsSuccessful = false
-          console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+          console.error(`Upload error for ${docInfo.docType}:`, error)
           setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
         }
-      } catch (error) {
-        allUploadsSuccessful = false
-        console.error(`Upload error for ${docInfo.docType}:`, error)
-        setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
       }
     }
 
     if (allUploadsSuccessful) {
-      alert("All documents uploaded successfully! Your application is submitted.")
+      // Mark the ICEGATE step as completed
+      const updateResult = await updateRegistrationStep(5, "completed") // Corrected stepId for ICEGATE
+      if (updateResult.success) {
+        alert("All documents uploaded successfully! Your ICEGATE application is submitted.")
+        router.push("/dashboard/progress") // Redirect to progress page
+      } else {
+        alert(`ICEGATE application submitted, but failed to update step status: ${updateResult.message}`)
+      }
     } else {
       alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
     }
   }
 
   const progress = calculateProgress()
-  const isSoleProprietorship = getBusinessTypeKey(profileData.businessType) === "individual"
+  // const isSoleProprietorship = getBusinessTypeKey(profileData.businessType) === "individual" // Not used
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">

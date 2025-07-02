@@ -24,7 +24,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument } from "@/app/actions"
+import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
   name: string
@@ -33,7 +34,7 @@ interface DocumentUploadState {
   url?: string
   status?: "pending" | "uploaded" | "verified" | "rejected"
   tempFile?: File | null
-  tempUrl?: string | null
+  tempUrl?: string
 }
 
 interface BankDetails {
@@ -45,7 +46,7 @@ interface BankDetails {
   cancelledChequeUrl?: string
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
   tempCancelledCheque?: File | null
-  tempCancelledChequeUrl?: string | null
+  tempCancelledChequeUrl?: string
 }
 
 interface ProfileData {
@@ -79,6 +80,7 @@ interface ProfileData {
   dscCertificate: string
   // ICEGATE Registration Documents
   bankDocumentUrl: string
+  adCodeLetterFromBankUrl: string // Added for AD Code specific document
 }
 
 // Helper component for document upload sections
@@ -276,6 +278,7 @@ export default function ADCodeRegistration() {
     otherProofUrl: "",
     dscCertificate: "",
     bankDocumentUrl: "",
+    adCodeLetterFromBankUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
     businessAddress: "",
@@ -294,6 +297,7 @@ export default function ADCodeRegistration() {
     tempCancelledChequeUrl: null,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -331,10 +335,12 @@ export default function ADCodeRegistration() {
           dscCertificate: data.user.dscCertificate || "",
           // ICEGATE Documents
           bankDocumentUrl: data.user.bankDocumentUrl || "",
+          // AD Code Registration Documents
+          adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
 
         // Pre-fill registration-specific documents from dashboard data
-        const adCodeStep = data.registrationSteps.find((step) => step.id === 5)
+        const adCodeStep = data.registrationSteps.find((step) => step.id === 6) // Corrected stepId for AD Code
         const adCodeStepDocuments = adCodeStep?.documents || []
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
@@ -546,65 +552,68 @@ export default function ADCodeRegistration() {
       documentsToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque, isBankDoc: true })
     }
 
-    if (documentsToUpload.length === 0) {
-      alert("No new documents to upload or all documents already processed. Proceeding with final form submission.")
-      console.log("Final form submission logic would go here.")
-      return
-    }
-
     let allUploadsSuccessful = true
-    for (const docInfo of documentsToUpload) {
-      const formData = new FormData()
-      formData.append("file", docInfo.file)
-      formData.append("documentType", docInfo.docType)
-      formData.append("stepId", "5")
+    if (documentsToUpload.length > 0) {
+      for (const docInfo of documentsToUpload) {
+        const formData = new FormData()
+        formData.append("file", docInfo.file)
+        formData.append("documentType", docInfo.docType)
+        formData.append("stepId", "6") // Corrected stepId for AD Code
 
-      try {
-        const result = await uploadDocument(formData)
-        if (result.success) {
-          if (docInfo.isBankDoc) {
-            setBankDetails((prev) => ({
-              ...prev,
-              cancelledChequeUrl: result.fileUrl,
-              cancelledChequeStatus: "uploaded",
-              tempCancelledCheque: null,
-              tempCancelledChequeUrl: null,
-            }))
+        try {
+          const result = await uploadDocument(formData)
+          if (result.success) {
+            if (docInfo.isBankDoc) {
+              setBankDetails((prev) => ({
+                ...prev,
+                cancelledChequeUrl: result.fileUrl,
+                cancelledChequeStatus: "uploaded",
+                tempCancelledCheque: null,
+                tempCancelledChequeUrl: null,
+              }))
+            } else {
+              setDocuments((prev) => ({
+                ...prev,
+                [docInfo.docType]: {
+                  ...prev[docInfo.docType],
+                  url: result.fileUrl,
+                  status: "uploaded",
+                  tempFile: null,
+                  tempUrl: null,
+                },
+              }))
+            }
+            console.log(`Successfully uploaded ${docInfo.docType}`)
           } else {
-            setDocuments((prev) => ({
-              ...prev,
-              [docInfo.docType]: {
-                ...prev[docInfo.docType],
-                url: result.fileUrl,
-                status: "uploaded",
-                tempFile: null,
-                tempUrl: null,
-              },
-            }))
+            allUploadsSuccessful = false
+            console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+            if (docInfo.isBankDoc) {
+              setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
+            } else {
+              setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
+            }
           }
-          console.log(`Successfully uploaded ${docInfo.docType}`)
-        } else {
+        } catch (error) {
           allUploadsSuccessful = false
-          console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+          console.error(`Upload error for ${docInfo.docType}:`, error)
           if (docInfo.isBankDoc) {
             setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
           } else {
             setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
           }
         }
-      } catch (error) {
-        allUploadsSuccessful = false
-        console.error(`Upload error for ${docInfo.docType}:`, error)
-        if (docInfo.isBankDoc) {
-          setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-        } else {
-          setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-        }
       }
     }
 
     if (allUploadsSuccessful) {
-      alert("All documents uploaded successfully! Your application is submitted.")
+      // Mark the AD Code step as completed
+      const updateResult = await updateRegistrationStep(6, "completed") // Corrected stepId for AD Code
+      if (updateResult.success) {
+        alert("All documents uploaded successfully! Your AD Code application is submitted.")
+        router.push("/dashboard/progress") // Redirect to progress page
+      } else {
+        alert(`AD Code application submitted, but failed to update step status: ${updateResult.message}`)
+      }
     } else {
       alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
     }

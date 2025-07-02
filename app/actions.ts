@@ -202,7 +202,7 @@ const calculateProfileCompletionPercentage = (user: any) => {
   if (user.photographUrl && user.photographUrl.trim() !== "") completedFields++
   if (user.proofOfAddressUrl && user.proofOfAddressUrl.trim() !== "") completedFields++
 
-  return Math.floor((completedFields / totalFields) * 100) // Use Math.floor for profile completion
+  return Math.round((completedFields / totalFields) * 100)
 }
 
 // Get dashboard data for a user
@@ -242,7 +242,7 @@ export async function getDashboardData() {
   const completedStepsCount = dashboard.registrationSteps.filter((step: any) => step.status === "completed").length
   const overallProgress =
     dashboard.registrationSteps.length > 0
-      ? Math.floor((completedStepsCount / dashboard.registrationSteps.length) * 100) // Use Math.floor here
+      ? Math.round((completedStepsCount / dashboard.registrationSteps.length) * 100)
       : 0
 
   // Calculate profile completion percentage dynamically
@@ -459,6 +459,9 @@ export async function uploadDocument(formData: FormData) {
       console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
     }
 
+    // No need to update dashboard.profileCompletion.completionPercentage here, it's calculated dynamically on fetch
+    // The user's profile data is updated, which will affect the dynamic calculation.
+
     return {
       success: true,
       fileUrl: fileUrl,
@@ -484,6 +487,9 @@ export async function updateProfileCompletion(field: string, value: boolean | st
   }
 
   await user.save()
+
+  // No need to update dashboard.profileCompletion.completionPercentage here, it's calculated dynamically on fetch
+  // The user's profile data is updated, which will affect the dynamic calculation.
 
   return {
     success: true,
@@ -512,21 +518,20 @@ export async function updateRegistrationStep(stepId: number, status: string) {
     dashboard.addNotification("Step Completed!", `${step.name} has been completed successfully.`, "success")
   }
 
+  // No need to call dashboard.calculateOverallProgress() here, it's calculated dynamically on fetch
   await dashboard.save()
 
   // Re-fetch dashboard data to get the latest dynamically calculated overall progress
   const updatedDashboard = await Dashboard.findOne({ userId: user._id }).lean()
   const updatedOverallProgress = updatedDashboard
-    ? Math.floor(
-        (updatedDashboard.registrationSteps.filter((s: any) => s.status === "completed").length /
-          updatedDashboard.registrationSteps.length) *
-          100,
-      )
+    ? (updatedDashboard.registrationSteps.filter((s: any) => s.status === "completed").length /
+        updatedDashboard.registrationSteps.length) *
+      100
     : 0
 
   return {
     success: true,
-    overallProgress: updatedOverallProgress, // Return the dynamically calculated value
+    overallProgress: Math.round(updatedOverallProgress), // Return the dynamically calculated value
   }
 }
 
@@ -567,6 +572,9 @@ export async function verifyEmail(email: string) {
     user.email = email
     user.emailVerified = true
     await user.save()
+
+    // No need to update dashboard.profileCompletion.completionPercentage here, it's calculated dynamically on fetch
+    // The user's profile data is updated, which will affect the dynamic calculation.
 
     // Add notification for email verification
     const dashboard = await Dashboard.findOne({ userId: user._id })

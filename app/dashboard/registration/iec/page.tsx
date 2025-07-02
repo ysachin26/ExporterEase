@@ -24,7 +24,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument } from "@/app/actions"
+import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
   name: string
@@ -33,7 +34,7 @@ interface DocumentUploadState {
   url?: string
   status?: "pending" | "uploaded" | "verified" | "rejected"
   tempFile?: File | null // New: for temporary local storage
-  tempUrl?: string | null // New: for temporary local preview URL
+  tempUrl?: string
 }
 
 interface BankDetails {
@@ -44,8 +45,8 @@ interface BankDetails {
   cancelledCheque: File | null // This will represent the *uploaded* file, or null if not yet uploaded
   cancelledChequeUrl?: string
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
-  tempCancelledCheque?: File | null // New: for temporary local storage
-  tempCancelledChequeUrl?: string | null // New: for temporary local preview URL
+  tempCancelledCheque?: File | null
+  tempCancelledChequeUrl?: string
 }
 
 interface ProfileData {
@@ -273,6 +274,7 @@ export default function IECRegistration() {
     tempCancelledChequeUrl: null,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -318,7 +320,7 @@ export default function IECRegistration() {
         }))
 
         // Pre-fill registration-specific documents from dashboard data
-        const iecStep = data.registrationSteps.find((step) => step.id === 4)
+        const iecStep = data.registrationSteps.find((step) => step.id === 3) // Corrected stepId for IEC
         const iecStepDocuments = iecStep?.documents || []
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
@@ -563,69 +565,69 @@ export default function IECRegistration() {
       documentsToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque, isBankDoc: true })
     }
 
-    if (documentsToUpload.length === 0) {
-      alert("No new documents to upload or all documents already processed. Proceeding with final form submission.")
-      // Here you would call your final form submission action
-      // For now, just log and return
-      console.log("Final form submission logic would go here.")
-      return
-    }
-
     let allUploadsSuccessful = true
-    for (const docInfo of documentsToUpload) {
-      const formData = new FormData()
-      formData.append("file", docInfo.file)
-      formData.append("documentType", docInfo.docType)
-      formData.append("stepId", "4") // IEC Registration step ID
+    if (documentsToUpload.length > 0) {
+      for (const docInfo of documentsToUpload) {
+        const formData = new FormData()
+        formData.append("file", docInfo.file)
+        formData.append("documentType", docInfo.docType)
+        formData.append("stepId", "3") // Corrected stepId for IEC
 
-      try {
-        const result = await uploadDocument(formData)
-        if (result.success) {
-          if (docInfo.isBankDoc) {
-            setBankDetails((prev) => ({
-              ...prev,
-              cancelledChequeUrl: result.fileUrl,
-              cancelledChequeStatus: "uploaded",
-              tempCancelledCheque: null, // Clear temp file after successful upload
-              tempCancelledChequeUrl: null,
-            }))
+        try {
+          const result = await uploadDocument(formData)
+          if (result.success) {
+            if (docInfo.isBankDoc) {
+              setBankDetails((prev) => ({
+                ...prev,
+                cancelledChequeUrl: result.fileUrl,
+                cancelledChequeStatus: "uploaded",
+                tempCancelledCheque: null, // Clear temp file after successful upload
+                tempCancelledChequeUrl: null,
+              }))
+            } else {
+              setDocuments((prev) => ({
+                ...prev,
+                [docInfo.docType]: {
+                  ...prev[docInfo.docType],
+                  url: result.fileUrl,
+                  status: "uploaded",
+                  tempFile: null, // Clear temp file after successful upload
+                  tempUrl: null,
+                },
+              }))
+            }
+            console.log(`Successfully uploaded ${docInfo.docType}`)
           } else {
-            setDocuments((prev) => ({
-              ...prev,
-              [docInfo.docType]: {
-                ...prev[docInfo.docType],
-                url: result.fileUrl,
-                status: "uploaded",
-                tempFile: null, // Clear temp file after successful upload
-                tempUrl: null,
-              },
-            }))
+            allUploadsSuccessful = false
+            console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+            // Optionally, update status to 'rejected' or show error for this specific document
+            if (docInfo.isBankDoc) {
+              setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
+            } else {
+              setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
+            }
           }
-          console.log(`Successfully uploaded ${docInfo.docType}`)
-        } else {
+        } catch (error) {
           allUploadsSuccessful = false
-          console.error(`Upload failed for ${docInfo.docType}:`, result.message)
-          // Optionally, update status to 'rejected' or show error for this specific document
+          console.error(`Upload error for ${docInfo.docType}:`, error)
           if (docInfo.isBankDoc) {
             setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
           } else {
             setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
           }
         }
-      } catch (error) {
-        allUploadsSuccessful = false
-        console.error(`Upload error for ${docInfo.docType}:`, error)
-        if (docInfo.isBankDoc) {
-          setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-        } else {
-          setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-        }
       }
     }
 
     if (allUploadsSuccessful) {
-      alert("All documents uploaded successfully! Your application is submitted.")
-      // Here you would typically navigate or show a success message
+      // Mark the IEC step as completed
+      const updateResult = await updateRegistrationStep(3, "completed") // Corrected stepId for IEC
+      if (updateResult.success) {
+        alert("All documents uploaded successfully! Your IEC application is submitted.")
+        router.push("/dashboard/progress") // Redirect to progress page
+      } else {
+        alert(`IEC application submitted, but failed to update step status: ${updateResult.message}`)
+      }
     } else {
       alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
     }
