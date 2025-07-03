@@ -22,13 +22,31 @@ interface UserData {
   id: string
   fullName: string
   businessName: string
+  businessType: "Propatorship" | "Partnership" | "LLP" | "PVT LTD" | "Other"
   mobileNo: string
   email: string
   emailVerified: boolean
-  aadharCardUploaded: boolean
-  panCardUploaded: boolean
-  photographUploaded: boolean
-  proofOfAddressUploaded: boolean
+  aadharCardUrl: string
+  panCardUrl: string
+  photographUrl: string
+  proofOfAddressUrl: string
+  authorizationLetterUrl: string
+  partnershipDeedUrl: string
+  llpAgreementUrl: string
+  certificateOfIncorporationUrl: string
+  moaAoaUrl: string
+  cancelledChequeUrl: string
+  iecCertificate: string
+  dscCertificate: string
+  gstCertificate: string
+  rentAgreementUrl: string
+  electricityBillUrl: string
+  nocUrl: string
+  propertyProofUrl: string
+  electricityBillOwnedUrl: string
+  otherProofUrl: string
+  adCodeLetterFromBankUrl: string
+  bankDocumentUrl: string
 }
 
 interface RegistrationStep {

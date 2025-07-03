@@ -75,7 +75,7 @@ const DashboardSchema: Schema = new Schema(
 
 DashboardSchema.pre("save", function (next) {
   if (this.isNew || (this.isModified("hasStartedRegistration") && this.hasStartedRegistration)) {
-    if (!this.registrationSteps || this.registrationSteps.length === 0 || this.isNew) {
+    if (!this.registrationSteps || (this.registrationSteps as any).length === 0 || this.isNew) {
       this.registrationSteps = [
         { id: 1, name: "Registration", status: "completed", icon: "UserPlus", documents: [], details: {} },
         { id: 2, name: "GST Registration", status: "pending", icon: "FileText", documents: [], details: {} },

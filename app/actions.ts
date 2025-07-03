@@ -94,7 +94,7 @@ export async function signup(prevState: any, formData: FormData) {
     await newUser.save()
 
     // Create initial dashboard data for the new user
-    await createInitialDashboard(newUser._id, fullName)
+    await createInitialDashboard(newUser._id as mongoose.Types.ObjectId, fullName)
 
     return { success: true, message: "Registration successful! You can now log in." }
   } catch (error: any) {
@@ -137,7 +137,7 @@ export async function login(prevState: any, formData: FormData) {
       message: "Login successful!",
       redirect: "/dashboard",
       user: {
-        id: user._id.toString(),
+        id: (user._id as mongoose.Types.ObjectId).toString(),
         fullName: user.fullName,
         mobileNo: user.mobileNo,
         businessName: user.businessName,
@@ -170,7 +170,7 @@ async function createInitialDashboard(userId: mongoose.Types.ObjectId, fullName:
   })
 
   // Explicitly mark the "Registration" step as completed
-  const registrationStep = dashboard.registrationSteps.find((step) => step.id === 1)
+  const registrationStep = dashboard.registrationSteps.find((step: any) => step.id === 1)
   if (registrationStep) {
     registrationStep.status = "completed"
     registrationStep.completedAt = new Date()
@@ -228,27 +228,35 @@ export async function getDashboardData() {
       proofOfAddressUrl: "",
     })
     await newUser.save()
-    user = newUser.toObject()
+  user = newUser.toObject() as any
+  }
+
+  if (!user) {
+    return { error: "User not found" }
   }
 
   let dashboard = await Dashboard.findOne({ userId: user._id }).lean()
 
   if (!dashboard) {
-    await createInitialDashboard(user._id, user.fullName)
+    await createInitialDashboard(user._id as mongoose.Types.ObjectId, user.fullName)
     dashboard = await Dashboard.findOne({ userId: user._id }).lean()
   }
 
+  if (!dashboard) {
+    return { error: "Dashboard not found" }
+  }
+
   // Calculate overall progress dynamically
-  const completedStepsCount = dashboard.registrationSteps.filter((step: any) => step.status === "completed").length
+  const completedStepsCount = (dashboard as any).registrationSteps.filter((step: any) => step.status === "completed").length
   const overallProgress =
-    dashboard.registrationSteps.length > 0
-      ? Math.round((completedStepsCount / dashboard.registrationSteps.length) * 100)
+    (dashboard as any).registrationSteps.length > 0
+      ? Math.round((completedStepsCount / (dashboard as any).registrationSteps.length) * 100)
       : 0
 
   // Calculate profile completion percentage dynamically
   const profileCompletionPercentage = calculateProfileCompletionPercentage(user)
 
-  const transformedRegistrationSteps = dashboard.registrationSteps.map((step: any) => ({
+  const transformedRegistrationSteps = (dashboard as any).registrationSteps.map((step: any) => ({
     id: step.id,
     name: step.name,
     status: step.status,
@@ -265,7 +273,7 @@ export async function getDashboardData() {
     details: step.details || {}, // Include the new details field
   }))
 
-  const transformedNotifications = dashboard.notifications.map((notif: any) => ({
+  const transformedNotifications = (dashboard as any).notifications.map((notif: any) => ({
     id: notif._id.toString(),
     title: notif.title,
     message: notif.message,
@@ -308,7 +316,7 @@ export async function getDashboardData() {
       adCodeLetterFromBankUrl: user.adCodeLetterFromBankUrl || "",
       bankDocumentUrl: user.bankDocumentUrl || "",
     },
-    hasStartedRegistration: dashboard.hasStartedRegistration,
+    hasStartedRegistration: (dashboard as any).hasStartedRegistration,
     profileCompletion: profileCompletionPercentage, // Dynamically calculated
     registrationSteps: transformedRegistrationSteps,
     overallProgress: overallProgress, // Dynamically calculated
@@ -412,7 +420,7 @@ export async function uploadDocument(formData: FormData) {
     const buffer = Buffer.from(arrayBuffer)
 
     // Get appropriate upload options based on file type
-    const uploadOptions = getCloudinaryUploadOptions(file, documentType, user._id.toString())
+    const uploadOptions = getCloudinaryUploadOptions(file, documentType, (user._id as mongoose.Types.ObjectId).toString())
 
     // Upload to Cloudinary with appropriate resource type
     const uploadResult = (await new Promise((resolve, reject) => {
@@ -432,11 +440,11 @@ export async function uploadDocument(formData: FormData) {
       const dashboard = await Dashboard.findOne({ userId: user._id })
       if (!dashboard) return { success: false, message: "Dashboard not found" }
 
-      const step = dashboard.registrationSteps.find((s) => s.id === stepId)
+      const step = dashboard.registrationSteps.find((s: any) => s.id === stepId)
       if (!step) return { success: false, message: "Registration step not found" }
 
       // Find or create the document entry within the step
-      const docEntry = step.documents.find((d) => d.name === documentType)
+      const docEntry = step.documents.find((d: any) => d.name === documentType)
       if (docEntry) {
         docEntry.url = fileUrl
         docEntry.uploadedAt = new Date()
@@ -484,7 +492,7 @@ export async function updateRegistrationDetails(stepId: number, details: Record<
   const dashboard = await Dashboard.findOne({ userId: user._id })
   if (!dashboard) return { success: false, message: "Dashboard not found" }
 
-  const step = dashboard.registrationSteps.find((s) => s.id === stepId)
+  const step = dashboard.registrationSteps.find((s: any) => s.id === stepId)
   if (!step) return { success: false, message: "Registration step not found" }
 
   // Update the details object for the specific step
@@ -595,7 +603,7 @@ export async function updateRegistrationDetails(stepId: number, details: Record<
 
   for (const docName of currentStepRelevantDocs) {
     const userDocUrl = userDocUrls[docName]
-    const existingDocInStep = step.documents.find((d) => d.name === docName)
+    const existingDocInStep = step.documents.find((d: any) => d.name === docName)
 
     if (userDocUrl && !existingDocInStep) {
       // If user has the URL and it's not already in the step's documents, add it
@@ -660,7 +668,7 @@ export async function updateRegistrationStep(stepId: number, status: string) {
   const dashboard = await Dashboard.findOne({ userId: user._id })
   if (!dashboard) return { success: false, message: "Dashboard not found" }
 
-  const step = dashboard.registrationSteps.find((s) => s.id === stepId)
+  const step = dashboard.registrationSteps.find((s: any) => s.id === stepId)
   if (!step) return { success: false, message: "Step not found" }
 
   const oldStatus = step.status
@@ -677,8 +685,8 @@ export async function updateRegistrationStep(stepId: number, status: string) {
   // Re-fetch dashboard data to get the latest dynamically calculated overall progress
   const updatedDashboard = await Dashboard.findOne({ userId: user._id }).lean()
   const updatedOverallProgress = updatedDashboard
-    ? (updatedDashboard.registrationSteps.filter((s: any) => s.status === "completed").length /
-        updatedDashboard.registrationSteps.length) *
+    ? ((updatedDashboard as any).registrationSteps.filter((s: any) => s.status === "completed").length /
+        (updatedDashboard as any).registrationSteps.length) *
       100
     : 0
 

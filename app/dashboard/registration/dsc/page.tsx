@@ -299,7 +299,7 @@ export default function DSCRegistration() {
             url: finalUrl,
             status: finalStatus || "pending",
             tempFile: null,
-            tempUrl: null,
+            tempUrl: undefined,
           }
         }
 

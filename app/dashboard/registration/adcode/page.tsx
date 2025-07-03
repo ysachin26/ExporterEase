@@ -120,7 +120,7 @@ const DocumentUploadSection = ({
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
   const hasTempFile =
-    (currentDocState as DocumentUploadState).tempFile || (currentDocState as BankDetails).tempCancelledCheque
+    (currentDocState as DocumentUploadState).tempFile || ((currentDocState as any).tempCancelledCheque as File | null)
 
   const getStatusDisplay = (status?: string, hasTemp?: boolean) => {
     if (status === "rejected") {
@@ -285,7 +285,7 @@ export default function ADCodeRegistration() {
     cancelledChequeUrl: "",
     cancelledChequeStatus: "pending",
     tempCancelledCheque: null,
-    tempCancelledChequeUrl: null,
+    tempCancelledChequeUrl: undefined,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status

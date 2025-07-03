@@ -134,7 +134,7 @@ export default function ProgressPage() {
           setDashboardData(updatedData as DashboardData)
         }
       } else {
-        setError(result.message)
+        setError(result.message || "An unknown error occurred")
       }
     } catch (err: any) {
       setError(`Failed to update step: ${err.message}`)
