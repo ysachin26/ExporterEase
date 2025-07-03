@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
 import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
@@ -274,6 +274,7 @@ export default function IECRegistration() {
     tempCancelledChequeUrl: null,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
@@ -313,15 +314,26 @@ export default function IECRegistration() {
           // AD Code Documents
           adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
-        // Pre-fill business name
-        setBusinessDetails((prev) => ({
-          ...prev,
-          businessName: data.user.businessName,
-        }))
-
-        // Pre-fill registration-specific documents from dashboard data
+        // Pre-fill registration-specific documents and details from dashboard data
         const iecStep = data.registrationSteps.find((step) => step.id === 3) // Corrected stepId for IEC
         const iecStepDocuments = iecStep?.documents || []
+        const iecStepDetails = iecStep?.details || {} // Get stored details
+        setRegistrationStatus(iecStep?.status || "") // Set registration status
+
+        // Pre-fill text fields from dashboard details
+        setBusinessDetails((prev) => ({
+          ...prev,
+          natureOfBusiness: iecStepDetails.natureOfBusiness || "",
+          businessAddress: iecStepDetails.businessAddress || "",
+          businessName: data.user.businessName, // Still pre-fill from user business name
+        }))
+        setBankDetails((prev) => ({
+          ...prev,
+          accountNumber: iecStepDetails.accountNumber || "",
+          bankName: iecStepDetails.bankName || "",
+          branchName: iecStepDetails.branchName || "",
+          ifscCode: iecStepDetails.ifscCode || "",
+        }))
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
         const newBankDetailsState: BankDetails = { ...bankDetails }
@@ -545,6 +557,21 @@ export default function IECRegistration() {
       return
     }
 
+    // Store text input values in Dashboard model
+    const detailsToSave = {
+      natureOfBusiness: businessDetails.natureOfBusiness,
+      businessAddress: businessDetails.businessAddress,
+      accountNumber: bankDetails.accountNumber,
+      bankName: bankDetails.bankName,
+      branchName: bankDetails.branchName,
+      ifscCode: bankDetails.ifscCode,
+    }
+    const updateDetailsResult = await updateRegistrationDetails(3, detailsToSave) // Step ID 3 for IEC
+    if (!updateDetailsResult.success) {
+      alert(`Failed to save IEC details: ${updateDetailsResult.message}`)
+      return
+    }
+
     // Handle document uploads
     const documentsToUpload: { docType: string; file: File; isBankDoc?: boolean }[] = []
 
@@ -621,7 +648,7 @@ export default function IECRegistration() {
 
     if (allUploadsSuccessful) {
       // Mark the IEC step as completed
-      const updateResult = await updateRegistrationStep(3, "completed") // Corrected stepId for IEC
+      const updateResult = await updateRegistrationStep(3, "in-progress") // Corrected stepId for IEC
       if (updateResult.success) {
         alert("All documents uploaded successfully! Your IEC application is submitted.")
         router.push("/dashboard/progress") // Redirect to progress page
@@ -1081,12 +1108,28 @@ export default function IECRegistration() {
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild>
-          <Link href="/dashboard/registration">Save & Continue Later</Link>
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmitApplication} disabled={progress < 100}>
-          Submit IEC Application ({progress}%)
-        </Button>
+        {registrationStatus === "in-progress" ? (
+          <div className="text-yellow-500 font-semibold">
+            Your application is under review. You cannot edit it at this time.
+          </div>
+        ) : registrationStatus === "approved" ? (
+          <div className="text-green-500 font-semibold">Congratulations! Your IEC registration is approved.</div>
+        ) : registrationStatus === "rejected" ? (
+          <div className="text-red-500 font-semibold">Your application was rejected. Please review and resubmit.</div>
+        ) : (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/registration">Save & Continue Later</Link>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSubmitApplication}
+              disabled={progress < 100}
+            >
+              Submit IEC Application ({progress}%)
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

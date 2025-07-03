@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
 import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
@@ -240,6 +240,7 @@ export default function DSCRegistration() {
     organizationName: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
@@ -280,20 +281,18 @@ export default function DSCRegistration() {
           adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
 
-        // Auto-set DSC type based on business type
-        if (data.user.businessType === "Proprietorship") {
-          setDscType("individual")
-        } else {
-          setDscType("organization")
-          setBusinessDetails((prev) => ({
-            ...prev,
-            organizationName: data.user.businessName || "",
-          }))
-        }
-
         // Pre-fill registration-specific documents from dashboard data
         const dscStep = data.registrationSteps.find((step) => step.id === 4) // Corrected stepId for DSC
         const dscStepDocuments = dscStep?.documents || []
+        const dscStepDetails = dscStep?.details || {} // Get stored details
+        setRegistrationStatus(dscStep?.status || "") // Set registration status
+
+        // Pre-fill text fields from dashboard details
+        setDscType(dscStepDetails.dscType || "")
+        setBusinessDetails({
+          designation: dscStepDetails.designation || "",
+          organizationName: dscStepDetails.organizationName || data.user.businessName || "", // Pre-fill from user business name if not in dashboard details
+        })
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
 
@@ -413,6 +412,20 @@ export default function DSCRegistration() {
       return
     }
 
+    // Store text input values in Dashboard model
+    const detailsToSave: Record<string, any> = {
+      dscType: dscType,
+    }
+    if (dscType === "organization") {
+      detailsToSave.designation = businessDetails.designation
+      detailsToSave.organizationName = businessDetails.organizationName
+    }
+    const updateDetailsResult = await updateRegistrationDetails(4, detailsToSave) // Step ID 4 for DSC
+    if (!updateDetailsResult.success) {
+      alert(`Failed to save DSC details: ${updateDetailsResult.message}`)
+      return
+    }
+
     const documentsToUpload: { docType: string; file: File }[] = []
 
     for (const key in documents) {
@@ -459,7 +472,7 @@ export default function DSCRegistration() {
 
     if (allUploadsSuccessful) {
       // Mark the DSC step as completed
-      const updateResult = await updateRegistrationStep(4, "completed") // Corrected stepId for DSC
+      const updateResult = await updateRegistrationStep(4, "in-progress") // Corrected stepId for DSC
       if (updateResult.success) {
         alert("All documents uploaded successfully! Your DSC application is submitted.")
         router.push("/dashboard/progress") // Redirect to progress page
@@ -827,12 +840,25 @@ export default function DSCRegistration() {
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild>
-          <Link href="/dashboard/registration">Save & Continue Later</Link>
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmitApplication} disabled={progress < 100}>
-          Submit DSC Application ({progress}%)
-        </Button>
+        {registrationStatus === "in-progress" ? (
+          <div className="flex items-center text-blue-600 font-medium">
+            <Clock className="h-5 w-5 mr-2" />
+            Your DSC application is in progress.
+          </div>
+        ) : (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/registration">Save & Continue Later</Link>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSubmitApplication}
+              disabled={progress < 100}
+            >
+              Submit DSC Application ({progress}%)
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

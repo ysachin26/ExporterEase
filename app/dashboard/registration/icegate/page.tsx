@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
 import { useRouter } from "next/navigation" // Import useRouter
 import type React from "react"
 
@@ -272,6 +272,7 @@ export default function ICEGATERegistration() {
     branchName: "",
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
@@ -316,6 +317,20 @@ export default function ICEGATERegistration() {
         // Pre-fill registration-specific documents from dashboard data
         const icegateStep = data.registrationSteps.find((step) => step.id === 5) // Corrected stepId for ICEGATE
         const icegateStepDocuments = icegateStep?.documents || []
+        const icegateStepDetails = icegateStep?.details || {} // Get stored details
+        setRegistrationStatus(icegateStep?.status || "") // Set registration status
+
+        // Pre-fill text fields from dashboard details
+        setBusinessDetails({
+          iecNumber: icegateStepDetails.iecNumber || "",
+          dscNumber: icegateStepDetails.dscNumber || "",
+        })
+        setBankDetails({
+          accountNumber: icegateStepDetails.accountNumber || "",
+          ifscCode: icegateStepDetails.ifscCode || "",
+          bankName: icegateStepDetails.bankName || "",
+          branchName: icegateStepDetails.branchName || "",
+        })
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
 
@@ -472,6 +487,21 @@ export default function ICEGATERegistration() {
       return
     }
 
+    // Store text input values in Dashboard model
+    const detailsToSave = {
+      iecNumber: businessDetails.iecNumber,
+      dscNumber: businessDetails.dscNumber,
+      accountNumber: bankDetails.accountNumber,
+      bankName: bankDetails.bankName,
+      branchName: bankDetails.branchName,
+      ifscCode: bankDetails.ifscCode,
+    }
+    const updateDetailsResult = await updateRegistrationDetails(5, detailsToSave) // Step ID 5 for ICEGATE
+    if (!updateDetailsResult.success) {
+      alert(`Failed to save ICEGATE details: ${updateDetailsResult.message}`)
+      return
+    }
+
     const documentsToUpload: { docType: string; file: File }[] = []
 
     for (const key in documents) {
@@ -518,7 +548,7 @@ export default function ICEGATERegistration() {
 
     if (allUploadsSuccessful) {
       // Mark the ICEGATE step as completed
-      const updateResult = await updateRegistrationStep(5, "completed") // Corrected stepId for ICEGATE
+      const updateResult = await updateRegistrationStep(5, "in-progress") // Corrected stepId for ICEGATE
       if (updateResult.success) {
         alert("All documents uploaded successfully! Your ICEGATE application is submitted.")
         router.push("/dashboard/progress") // Redirect to progress page
@@ -872,7 +902,7 @@ export default function ICEGATERegistration() {
         <CardContent className="space-y-4">
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center gap-2 mb-4">
-              <Building className="h-4 w-4 text-slate-600" />
+              <Building className="h-4 w-4" />
               <h4 className="font-medium text-slate-900">Bank Details Include:</h4>
             </div>
 
@@ -1012,12 +1042,25 @@ export default function ICEGATERegistration() {
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild>
-          <Link href="/dashboard/registration">Save & Continue Later</Link>
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmitApplication} disabled={progress < 100}>
-          Submit ICEGATE Application ({progress}%)
-        </Button>
+        {registrationStatus === "in-progress" ? (
+          <div className="flex items-center text-blue-600 font-medium">
+            <Clock className="h-5 w-5 mr-2" />
+            Your ICEGATE application is in progress.
+          </div>
+        ) : (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/registration">Save & Continue Later</Link>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSubmitApplication}
+              disabled={progress < 100}
+            >
+              Submit ICEGATE Application ({progress}%)
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

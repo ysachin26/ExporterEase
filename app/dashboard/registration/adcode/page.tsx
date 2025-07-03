@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
 import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
@@ -297,6 +297,7 @@ export default function ADCodeRegistration() {
     tempCancelledChequeUrl: null,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
+  const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
 
   // Fetch profile data on component mount
@@ -342,6 +343,22 @@ export default function ADCodeRegistration() {
         // Pre-fill registration-specific documents from dashboard data
         const adCodeStep = data.registrationSteps.find((step) => step.id === 6) // Corrected stepId for AD Code
         const adCodeStepDocuments = adCodeStep?.documents || []
+        const adCodeStepDetails = adCodeStep?.details || {} // Get stored details
+        setRegistrationStatus(adCodeStep?.status || "") // Set registration status
+
+        // Pre-fill text fields from dashboard details
+        setBusinessDetails({
+          businessAddress: adCodeStepDetails.businessAddress || "",
+          iecNumber: adCodeStepDetails.iecNumber || "",
+          dscNumber: adCodeStepDetails.dscNumber || "",
+        })
+        setBankDetails((prev) => ({
+          ...prev,
+          accountNumber: adCodeStepDetails.accountNumber || "",
+          bankName: adCodeStepDetails.bankName || "",
+          branchName: adCodeStepDetails.branchName || "",
+          ifscCode: adCodeStepDetails.ifscCode || "",
+        }))
 
         const newDocumentsState: Record<string, DocumentUploadState> = {}
         const newBankDetailsState: BankDetails = { ...bankDetails }
@@ -534,6 +551,22 @@ export default function ADCodeRegistration() {
       return
     }
 
+    // Store text input values in Dashboard model
+    const detailsToSave = {
+      businessAddress: businessDetails.businessAddress,
+      iecNumber: businessDetails.iecNumber,
+      dscNumber: businessDetails.dscNumber,
+      accountNumber: bankDetails.accountNumber,
+      bankName: bankDetails.bankName,
+      branchName: bankDetails.branchName,
+      ifscCode: bankDetails.ifscCode,
+    }
+    const updateDetailsResult = await updateRegistrationDetails(6, detailsToSave) // Step ID 6 for AD Code
+    if (!updateDetailsResult.success) {
+      alert(`Failed to save AD Code details: ${updateDetailsResult.message}`)
+      return
+    }
+
     const documentsToUpload: { docType: string; file: File; isBankDoc?: boolean }[] = []
 
     // General documents
@@ -607,7 +640,7 @@ export default function ADCodeRegistration() {
 
     if (allUploadsSuccessful) {
       // Mark the AD Code step as completed
-      const updateResult = await updateRegistrationStep(6, "completed") // Corrected stepId for AD Code
+      const updateResult = await updateRegistrationStep(6, "in-progress") // Corrected stepId for AD Code
       if (updateResult.success) {
         alert("All documents uploaded successfully! Your AD Code application is submitted.")
         router.push("/dashboard/progress") // Redirect to progress page
@@ -1098,12 +1131,25 @@ export default function ADCodeRegistration() {
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild>
-          <Link href="/dashboard/registration">Save & Continue Later</Link>
-        </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmitApplication} disabled={progress < 100}>
-          Submit AD Code Application ({progress}%)
-        </Button>
+        {registrationStatus === "in-progress" ? (
+          <div className="flex items-center text-blue-600 font-medium">
+            <Clock className="h-5 w-5 mr-2" />
+            Your AD Code application is in progress.
+          </div>
+        ) : (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/registration">Save & Continue Later</Link>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSubmitApplication}
+              disabled={progress < 100}
+            >
+              Submit AD Code Application ({progress}%)
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

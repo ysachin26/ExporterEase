@@ -262,6 +262,7 @@ export async function getDashboardData() {
           url: doc.url, // Include URL
         }))
       : [],
+    details: step.details || {}, // Include the new details field
   }))
 
   const transformedNotifications = dashboard.notifications.map((notif: any) => ({
@@ -473,6 +474,158 @@ export async function uploadDocument(formData: FormData) {
   }
 }
 
+// NEW SERVER ACTION: Update registration step details (text inputs)
+export async function updateRegistrationDetails(stepId: number, details: Record<string, any>) {
+  await connectDB()
+
+  const user = await User.findOne().sort({ createdAt: -1 })
+  if (!user) return { success: false, message: "User not found" }
+
+  const dashboard = await Dashboard.findOne({ userId: user._id })
+  if (!dashboard) return { success: false, message: "Dashboard not found" }
+
+  const step = dashboard.registrationSteps.find((s) => s.id === stepId)
+  if (!step) return { success: false, message: "Registration step not found" }
+
+  // Update the details object for the specific step
+  step.details = { ...step.details, ...details }
+
+  // --- NEW LOGIC TO ADD PRE-FILLED DOCUMENTS TO REGISTRATION STEP DOCUMENTS ---
+  const userDocUrls: Record<string, string | undefined> = {
+    // Profile documents (always relevant for progress calculation)
+    panCard: user.panCardUrl,
+    aadharCard: user.aadharCardUrl,
+    photograph: user.photographUrl,
+    proofOfAddress: user.proofOfAddressUrl,
+
+    // Shared business entity documents
+    authorizationLetter: user.authorizationLetterUrl,
+    partnershipDeed: user.partnershipDeedUrl,
+    llpAgreement: user.llpAgreementUrl,
+    certificateOfIncorporation: user.certificateOfIncorporationUrl,
+    moaAoa: user.moaAoaUrl,
+
+    // Shared bank documents
+    cancelledCheque: user.cancelledChequeUrl,
+    bankDocument: user.bankDocumentUrl, // Used in ICEGATE
+
+    // Registration-specific certificates/documents
+    iecCertificate: user.iecCertificate,
+    gstCertificate: user.gstCertificate,
+    dscCertificate: user.dscCertificate,
+    adCodeLetterFromBank: user.adCodeLetterFromBankUrl,
+
+    // GST Premise documents
+    rentAgreement: user.rentAgreementUrl,
+    electricityBill: user.electricityBillUrl,
+    noc: user.nocUrl,
+    propertyProof: user.propertyProofUrl,
+    electricityBillOwned: user.electricityBillOwnedUrl,
+    otherProof: user.otherProofUrl,
+  }
+
+  // Define which documents are relevant for each step
+  const relevantDocsForStep: Record<number, string[]> = {
+    2: [
+      // GST Registration
+      "panCard",
+      "aadharCard",
+      "photograph",
+      "proofOfAddress",
+      "authorizationLetter",
+      "partnershipDeed",
+      "llpAgreement",
+      "certificateOfIncorporation",
+      "moaAoa",
+      "cancelledCheque",
+      "rentAgreement",
+      "electricityBill",
+      "noc",
+      "propertyProof",
+      "electricityBillOwned",
+      "otherProof",
+    ],
+    3: [
+      // IEC Code
+      "panCard",
+      "aadharCard",
+      "photograph",
+      "proofOfAddress",
+      "authorizationLetter",
+      "partnershipDeed",
+      "llpAgreement",
+      "certificateOfIncorporation",
+      "moaAoa",
+      "cancelledCheque",
+    ],
+    4: [
+      // DSC Registration
+      "panCard",
+      "aadharCard",
+      "photograph",
+      "proofOfAddress",
+      "authorizationLetter",
+    ],
+    5: [
+      // ICEGATE Registration
+      "panCard",
+      "aadharCard",
+      "photograph",
+      "proofOfAddress",
+      "iecCertificate",
+      "dscCertificate",
+      "authorizationLetter",
+      "bankDocument",
+    ],
+    6: [
+      // AD Code
+      "panCard",
+      "aadharCard",
+      "photograph",
+      "proofOfAddress",
+      "iecCertificate",
+      "dscCertificate",
+      "adCodeLetterFromBank",
+      "authorizationLetter",
+      "cancelledCheque",
+    ],
+  }
+
+  const currentStepRelevantDocs = relevantDocsForStep[stepId] || []
+
+  for (const docName of currentStepRelevantDocs) {
+    const userDocUrl = userDocUrls[docName]
+    const existingDocInStep = step.documents.find((d) => d.name === docName)
+
+    if (userDocUrl && !existingDocInStep) {
+      // If user has the URL and it's not already in the step's documents, add it
+      step.documents.push({
+        name: docName,
+        url: userDocUrl,
+        uploadedAt: new Date(),
+        status: "uploaded", // Mark as uploaded since it's coming from user profile
+      })
+      console.log(`Added pre-filled document '${docName}' to step ${stepId} documents.`)
+    } else if (
+      userDocUrl &&
+      existingDocInStep &&
+      existingDocInStep.url !== userDocUrl &&
+      existingDocInStep.status !== "rejected"
+    ) {
+      // If user has a new URL for an existing document in step, update it (unless it was rejected)
+      existingDocInStep.url = userDocUrl
+      existingDocInStep.uploadedAt = new Date()
+      existingDocInStep.status = "uploaded"
+      console.log(`Updated pre-filled document '${docName}' in step ${stepId} documents.`)
+    }
+  }
+  // --- END NEW LOGIC ---
+
+  await dashboard.save()
+
+  return { success: true, message: "Registration details updated successfully." }
+}
+
 // Update profile completion fields in the User model
 export async function updateProfileCompletion(field: string, value: boolean | string) {
   await connectDB()
@@ -558,6 +711,25 @@ export async function addNotification(title: string, message: string, type = "in
   }
 
   return { success: true, notification: plainNotification }
+}
+
+// Mark notification as read
+export async function markNotificationAsRead(notificationId: string) {
+  await connectDB()
+
+  const user = await User.findOne().sort({ createdAt: -1 })
+  if (!user) return { success: false, message: "User not found" }
+
+  const dashboard = await Dashboard.findOne({ userId: user._id })
+  if (!dashboard) return { success: false, message: "Dashboard not found" }
+
+  const notification = dashboard.notifications.id(notificationId)
+  if (!notification) return { success: false, message: "Notification not found" }
+
+  notification.read = true
+  await dashboard.save()
+
+  return { success: true, message: "Notification marked as read" }
 }
 
 // Email verification function

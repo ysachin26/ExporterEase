@@ -28,7 +28,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getDashboardData, uploadDocument } from "@/app/actions"
-import { updateProfileCompletion, updateRegistrationStep } from "@/app/actions" // Import updateRegistrationStep
+import { updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
 import { useRouter } from "next/navigation" // Import useRouter for navigation
 
 interface DocumentUploadState {
@@ -56,14 +56,17 @@ interface BankDetails {
 interface BusinessDocuments {
   authorizationLetter: File | null
   partnershipDeed: File | null
+  llpAgreement: File | null // Added LLP Agreement to businessDocuments state
   certificateOfIncorporation: File | null
   moaAoa: File | null
   authorizationLetterUrl?: string
   partnershipDeedUrl?: string
+  llpAgreementUrl?: string // Added LLP Agreement URL
   certificateOfIncorporationUrl?: string
   moaAoaUrl?: string
   authorizationLetterStatus?: "pending" | "uploaded" | "verified" | "rejected"
   partnershipDeedStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  llpAgreementStatus?: "pending" | "uploaded" | "verified" | "rejected" // Added LLP Agreement Status
   certificateOfIncorporationStatus?: "pending" | "uploaded" | "verified" | "rejected"
   moaAoaStatus?: "pending" | "uploaded" | "verified" | "rejected"
 }
@@ -81,6 +84,7 @@ interface ProfileData {
   // Shared documents from User model - ALL REGISTRATION DOCUMENTS
   authorizationLetterUrl: string
   partnershipDeedUrl: string
+  llpAgreementUrl: string
   certificateOfIncorporationUrl: string
   moaAoaUrl: string
   cancelledChequeUrl: string
@@ -122,6 +126,7 @@ export default function GSTRegistration() {
     businessName: "",
     authorizationLetterUrl: "",
     partnershipDeedUrl: "",
+    llpAgreementUrl: "", // Initialize
     certificateOfIncorporationUrl: "",
     moaAoaUrl: "",
     cancelledChequeUrl: "",
@@ -156,14 +161,17 @@ export default function GSTRegistration() {
   const [businessDocuments, setBusinessDocuments] = useState<BusinessDocuments>({
     authorizationLetter: null,
     partnershipDeed: null,
+    llpAgreement: null, // Initialize
     certificateOfIncorporation: null,
     moaAoa: null,
     authorizationLetterUrl: "",
     partnershipDeedUrl: "",
+    llpAgreementUrl: "", // Initialize
     certificateOfIncorporationUrl: "",
     moaAoaUrl: "",
     authorizationLetterStatus: "pending",
     partnershipDeedStatus: "pending",
+    llpAgreementStatus: "pending", // Initialize
     certificateOfIncorporationStatus: "pending",
     moaAoaStatus: "pending",
   })
@@ -178,6 +186,7 @@ export default function GSTRegistration() {
     cancelledCheque: null,
     authorizationLetter: null,
     partnershipDeed: null,
+    llpAgreement: null, // Added to stagedFiles
     certificateOfIncorporation: null,
     moaAoa: null,
     otherProof: null,
@@ -192,13 +201,14 @@ export default function GSTRegistration() {
     cancelledCheque: false,
     authorizationLetter: false,
     partnershipDeed: false,
+    llpAgreement: false, // Added to uploadingStates
     certificateOfIncorporation: false,
     moaAoa: false,
     otherProof: false,
   })
 
   const [isSaving, setIsSaving] = useState(false) // Declare isSaving state
-  // const [onUpdate, setOnUpdate] = useState(() => () => {}) // Removed as it's not used
+  const [dashboardData, setDashboardData] = useState<any>(null) // Add dashboard data state
 
   // Refs for file inputs
   const rentAgreementRef = useRef<HTMLInputElement>(null)
@@ -209,6 +219,7 @@ export default function GSTRegistration() {
   const cancelledChequeRef = useRef<HTMLInputElement>(null)
   const authorizationLetterRef = useRef<HTMLInputElement>(null)
   const partnershipDeedRef = useRef<HTMLInputElement>(null)
+  const llpAgreementRef = useRef<HTMLInputElement>(null) // Added ref for LLP Agreement
   const certificateOfIncorporationRef = useRef<HTMLInputElement>(null)
   const moaAoaRef = useRef<HTMLInputElement>(null)
   const otherProofRef = useRef<HTMLInputElement>(null)
@@ -220,6 +231,7 @@ export default function GSTRegistration() {
     const fetchInitialData = async () => {
       try {
         const data = await getDashboardData()
+        setDashboardData(data) // Store dashboard data
 
         // Map business type from database to form values
         let mappedBusinessType: "individual" | "partnership" | "llp" | "pvt_ltd" = "individual"
@@ -254,6 +266,7 @@ export default function GSTRegistration() {
           // 🔥 ALL SHARED DOCUMENTS FROM USER MODEL
           authorizationLetterUrl: data.user.authorizationLetterUrl || "",
           partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          llpAgreementUrl: data.user.llpAgreementUrl || "", // Ensure this is fetched
           certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
           moaAoaUrl: data.user.moaAoaUrl || "",
           cancelledChequeUrl: data.user.cancelledChequeUrl || "",
@@ -275,26 +288,44 @@ export default function GSTRegistration() {
           otherProofUrl: data.user.otherProofUrl || "",
         })
 
-        // Pre-fill business name from profile
+        // Pre-fill registration-specific documents and details from dashboard data
+        const gstStep = data.registrationSteps.find((step: any) => step.id === 2) // Corrected stepId for GST
+        const gstStepDocuments = gstStep?.documents || []
+        const gstStepDetails = gstStep?.details || {} // Get stored details
+
+        // Pre-fill text fields from dashboard details
         setBusinessDetails((prev) => ({
           ...prev,
-          businessName: data.user.businessName || "",
+          natureOfBusiness: gstStepDetails.natureOfBusiness || "",
+          businessName: gstStepDetails.businessName || data.user.businessName || "", // Pre-fill from user business name if not in dashboard details
         }))
+        setBankDetails((prev) => ({
+          ...prev,
+          accountNumber: gstStepDetails.accountNumber || "",
+          bankName: gstStepDetails.bankName || "",
+          branchName: gstStepDetails.branchName || "",
+          ifscCode: gstStepDetails.ifscCode || "",
+        }))
+        setPremiseType(gstStepDetails.premiseType || "")
+        setOtherPremiseDescription(gstStepDetails.otherPremiseDescription || "")
 
         // 🔥 PRE-FILL BUSINESS DOCUMENTS FROM USER MODEL (SHARED DOCUMENTS)
         setBusinessDocuments((prev) => ({
           ...prev,
           authorizationLetterUrl: data.user.authorizationLetterUrl || "",
           partnershipDeedUrl: data.user.partnershipDeedUrl || "",
+          llpAgreementUrl: data.user.llpAgreementUrl || "", // Pre-fill LLP Agreement URL
           certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
           moaAoaUrl: data.user.moaAoaUrl || "",
           // Mark as uploaded if URL exists
           authorizationLetter: data.user.authorizationLetterUrl ? ({} as File) : null,
           partnershipDeed: data.user.partnershipDeedUrl ? ({} as File) : null,
+          llpAgreement: data.user.llpAgreementUrl ? ({} as File) : null, // Pre-fill LLP Agreement file state
           certificateOfIncorporation: data.user.certificateOfIncorporationUrl ? ({} as File) : null,
           moaAoa: data.user.moaAoaUrl ? ({} as File) : null,
           authorizationLetterStatus: data.user.authorizationLetterUrl ? "uploaded" : "pending",
           partnershipDeedStatus: data.user.partnershipDeedUrl ? "uploaded" : "pending",
+          llpAgreementStatus: data.user.llpAgreementUrl ? "uploaded" : "pending", // Pre-fill LLP Agreement status
           certificateOfIncorporationStatus: data.user.certificateOfIncorporationUrl ? "uploaded" : "pending",
           moaAoaStatus: data.user.moaAoaUrl ? "uploaded" : "pending",
         }))
@@ -307,15 +338,11 @@ export default function GSTRegistration() {
           cancelledChequeStatus: data.user.cancelledChequeUrl ? "uploaded" : "pending",
         }))
 
-        // Pre-fill registration-specific documents from dashboard data
-        const gstStep = data.registrationSteps.find((step) => step.id === 2) // Corrected stepId for GST
-        const gstStepDocuments = gstStep?.documents || []
-
         const newDocumentsState: Record<string, DocumentUploadState> = {}
 
         // Helper to get document state, prioritizing profileData
         const getDocState = (docName: string, profileUrl: string | undefined) => {
-          const dashboardDoc = gstStepDocuments.find((d) => d.name === docName)
+          const dashboardDoc = gstStepDocuments.find((d: any) => d.name === docName)
           const finalUrl = profileUrl || dashboardDoc?.url
           const finalStatus = profileUrl ? "uploaded" : dashboardDoc?.status // If from profile, assume uploaded. Dashboard might have more specific status.
           return {
@@ -338,20 +365,6 @@ export default function GSTRegistration() {
         newDocumentsState.otherProof = getDocState("otherProof", data.user.otherProofUrl)
 
         setDocuments(newDocumentsState)
-
-        // Determine premise type if documents are uploaded
-        if (
-          data.user.rentAgreementUrl ||
-          data.user.nocUrl ||
-          newDocumentsState.rentAgreement.url ||
-          newDocumentsState.noc.url
-        ) {
-          setPremiseType("rented")
-        } else if (data.user.propertyProofUrl || newDocumentsState.propertyProof.url) {
-          setPremiseType("owned")
-        } else if (data.user.otherProofUrl || newDocumentsState.otherProof.url) {
-          setPremiseType("other")
-        }
       } catch (error) {
         console.error("Failed to fetch initial GST registration data:", error)
       }
@@ -369,6 +382,12 @@ export default function GSTRegistration() {
       })
     }
   }, [stagedFiles])
+
+  // Get registration status
+  const getRegistrationStatus = () => {
+    const step = dashboardData?.registrationSteps?.find((s: any) => s.id === 2) // GST is step 2
+    return step?.status || "not-started"
+  }
 
   const calculateProgress = () => {
     let completed = 0
@@ -401,11 +420,18 @@ export default function GSTRegistration() {
       )
         completed++
 
-      if (businessType === "partnership" || businessType === "llp") {
-        total += 1 // Partnership deed/LLP agreement
+      if (businessType === "partnership") {
+        total += 1 // Partnership deed
         if (
           (businessDocuments.partnershipDeedUrl && businessDocuments.partnershipDeedStatus !== "rejected") ||
           stagedFiles.partnershipDeed
+        )
+          completed++
+      } else if (businessType === "llp") {
+        total += 1 // LLP agreement
+        if (
+          (businessDocuments.llpAgreementUrl && businessDocuments.llpAgreementStatus !== "rejected") ||
+          stagedFiles.llpAgreement
         )
           completed++
       }
@@ -500,11 +526,26 @@ export default function GSTRegistration() {
       return
     }
 
-    // First, update text fields (if any are directly editable on this page)
-    await updateProfileCompletion("natureOfBusiness", businessDetails.natureOfBusiness)
-    await updateProfileCompletion("businessName", businessDetails.businessName)
+    setIsSaving(true)
+
+    // Store text input values in Dashboard model
+    const detailsToSave: Record<string, any> = {
+      natureOfBusiness: businessDetails.natureOfBusiness,
+      businessName: businessDetails.businessName,
+      premiseType: premiseType,
+      accountNumber: bankDetails.accountNumber,
+      bankName: bankDetails.bankName,
+      branchName: bankDetails.branchName,
+      ifscCode: bankDetails.ifscCode,
+    }
     if (premiseType === "other") {
-      await updateProfileCompletion("otherPremiseDescription", otherPremiseDescription)
+      detailsToSave.otherPremiseDescription = otherPremiseDescription
+    }
+    const updateDetailsResult = await updateRegistrationDetails(2, detailsToSave) // Step ID 2 for GST
+    if (!updateDetailsResult.success) {
+      alert(`Failed to save GST details: ${updateDetailsResult.message}`)
+      setIsSaving(false)
+      return
     }
 
     const filesToUpload: { type: string; file: File }[] = []
@@ -529,7 +570,6 @@ export default function GSTRegistration() {
     const newUploadingStates: Record<string, boolean> = {}
     filesToUpload.forEach((f) => (newUploadingStates[f.type] = true))
     setUploadingStates(newUploadingStates)
-    setIsSaving(true)
 
     let allUploadsSuccessful = true
     const updatedDocuments: Record<string, DocumentUploadState> = { ...documents }
@@ -555,6 +595,7 @@ export default function GSTRegistration() {
             } else if (
               type === "authorizationLetter" ||
               type === "partnershipDeed" ||
+              type === "llpAgreement" || // Added llpAgreement
               type === "certificateOfIncorporation" ||
               type === "moaAoa"
             ) {
@@ -1132,19 +1173,37 @@ export default function GSTRegistration() {
               )}
             </div>
 
-            {/* Partnership Deed - Only for Partnership and LLP */}
-            {(businessType === "partnership" || businessType === "llp") && (
+            {/* Partnership Deed - Only for Partnership */}
+            {businessType === "partnership" && (
               <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                 <h4 className="font-medium text-purple-900">🤝 Partnership Documents:</h4>
                 {getDocumentUploadComponent(
                   "partnershipDeed",
-                  businessType === "partnership" ? "Partnership Deed" : "LLP Agreement",
+                  "Partnership Deed",
                   businessDocuments.partnershipDeedUrl,
                   businessDocuments.partnershipDeedStatus,
                   partnershipDeedRef,
                   handleStageFileUpload,
                   Users,
-                  businessType === "partnership" ? "Registered partnership deed" : "LLP agreement",
+                  "Registered partnership deed",
+                  ".pdf,.jpg,.jpeg,.png",
+                )}
+              </div>
+            )}
+
+            {/* LLP Agreement - Only for LLP */}
+            {businessType === "llp" && (
+              <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <h4 className="font-medium text-purple-900">🤝 LLP Documents:</h4>
+                {getDocumentUploadComponent(
+                  "llpAgreement",
+                  "LLP Agreement",
+                  businessDocuments.llpAgreementUrl,
+                  businessDocuments.llpAgreementStatus,
+                  llpAgreementRef, // Use the new ref
+                  handleStageFileUpload,
+                  Users,
+                  "Limited Liability Partnership agreement",
                   ".pdf,.jpg,.jpeg,.png",
                 )}
               </div>
@@ -1422,56 +1481,76 @@ export default function GSTRegistration() {
                       <div className="text-sm font-medium">IEC Certificate</div>
                       <div className="flex items-center gap-1 text-emerald-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from IEC Registration</span>
+                        <span>Available</span>
                       </div>
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-primary text-xs mt-1"
-                        onClick={() => window.open(profileData.iecCertificate, "_blank")}
-                      >
-                        <Eye className="h-3 w-3 mr-1" /> View Certificate
-                      </Button>
                     </div>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-primary text-xs"
+                      onClick={() => window.open(profileData.iecCertificate, "_blank")}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> View
+                    </Button>
                   </div>
                 )}
 
                 {profileData.dscCertificate && (
                   <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <Award className="h-4 w-4 text-emerald-600" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">DSC Certificate</div>
-                      <div className="flex items-center gap-1 text-indigo-600 text-xs">
+                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from DSC Registration</span>
+                        <span>Available</span>
                       </div>
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-primary text-xs mt-1"
-                        onClick={() => window.open(profileData.dscCertificate, "_blank")}
-                      >
-                        <Eye className="h-3 w-3 mr-1" /> View Certificate
-                      </Button>
                     </div>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-primary text-xs"
+                      onClick={() => window.open(profileData.dscCertificate, "_blank")}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> View
+                    </Button>
+                  </div>
+                )}
+
+                {profileData.gstCertificate && (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                    <Award className="h-4 w-4 text-emerald-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">GST Certificate</div>
+                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
+                        <Check className="h-3 w-3" />
+                        <span>Available</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-primary text-xs"
+                      onClick={() => window.open(profileData.gstCertificate, "_blank")}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> View
+                    </Button>
                   </div>
                 )}
 
                 {profileData.adCodeLetterFromBankUrl && (
                   <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <Award className="h-4 w-4 text-emerald-600" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">AD Code Letter</div>
-                      <div className="flex items-center gap-1 text-blue-600 text-xs">
+                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from AD Code Registration</span>
+                        <span>Available</span>
                       </div>
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-primary text-xs mt-1"
-                        onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
-                      >
-                        <Eye className="h-3 w-3 mr-1" /> View Document
-                      </Button>
                     </div>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-primary text-xs"
+                      onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> View
+                    </Button>
                   </div>
                 )}
               </div>
@@ -1480,15 +1559,37 @@ export default function GSTRegistration() {
         </Card>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex justify-between pt-6 border-t">
-        <Button variant="outline" asChild disabled={isSaving}>
-          <Link href="/dashboard/registration">Save & Continue Later</Link>
-        </Button>
-        <Button className="bg-primary hover:bg-primary/90" onClick={handleSubmit} disabled={progress < 100 || isSaving}>
-          {isSaving ? "Submitting..." : `Submit GST Application (${progress}%)`}
-        </Button>
-      </div>
+      {/* Action Buttons - Hide when status is "in-progress" */}
+      {getRegistrationStatus() !== "in-progress" && (
+        <div className="flex gap-4 pt-6">
+          <Button variant="outline" className="flex-1 bg-transparent" disabled={isSaving}>
+            Save & Continue Later
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            className="flex-1 bg-teal-600 hover:bg-teal-700"
+            disabled={progress < 100 || isSaving}
+          >
+            {isSaving ? "Submitting..." : "Submit GST Application"}
+          </Button>
+        </div>
+      )}
+
+      {/* Show status message when in progress */}
+      {getRegistrationStatus() === "in-progress" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-amber-600" />
+            <div>
+              <h4 className="font-medium text-amber-900">Application Submitted</h4>
+              <p className="text-amber-700 text-sm">
+                Your GST registration application has been submitted and is currently being processed. You can track the
+                progress in the Progress section.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
