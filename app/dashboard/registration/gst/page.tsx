@@ -314,7 +314,7 @@ export default function GSTRegistration() {
           ...prev,
           authorizationLetterUrl: data.user.authorizationLetterUrl || "",
           partnershipDeedUrl: data.user.partnershipDeedUrl || "",
-          llpAgreementUrl: data.user.llpAgreementUrl || "", // Pre-fill LLP Agreement URL
+          llpAgreementUrl: data.user.llpAgreementUrl || "", // Ensure this is fetched
           certificateOfIncorporationUrl: data.user.certificateOfIncorporationUrl || "",
           moaAoaUrl: data.user.moaAoaUrl || "",
           // Mark as uploaded if URL exists
@@ -790,11 +790,7 @@ export default function GSTRegistration() {
                   <Upload className="h-3 w-3 mr-1" /> Re-upload
                 </Button>
               )}
-              {currentStatus !== "rejected" && (
-                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
-                  <Upload className="h-3 w-3 mr-1" /> Replace
-                </Button>
-              )}
+              {/* Removed the "Replace" button for pre-fetched/shared documents */}
             </div>
           ) : (
             <div className="space-y-2">
@@ -935,11 +931,7 @@ export default function GSTRegistration() {
                   <Upload className="h-3 w-3 mr-1" /> Re-upload
                 </Button>
               )}
-              {currentDocState.status !== "rejected" && (
-                <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
-                  <Upload className="h-3 w-3 mr-1" /> Replace
-                </Button>
-              )}
+              {/* Removed the "Replace" button for pre-fetched/shared documents */}
             </div>
           ) : (
             <div className="space-y-2">
@@ -1579,7 +1571,7 @@ export default function GSTRegistration() {
       {getRegistrationStatus() === "in-progress" && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-amber-600" />
+            <Clock className="h-5 w-5 mr-2" />
             <div>
               <h4 className="font-medium text-amber-900">Application Submitted</h4>
               <p className="text-amber-700 text-sm">

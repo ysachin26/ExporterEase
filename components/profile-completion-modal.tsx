@@ -533,13 +533,6 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                           >
                             <Eye className="h-3 w-3 mr-1" /> View
                           </Button>
-                          <Button
-                            variant="link"
-                            className="p-0 h-auto text-blue-600 text-xs mt-1"
-                            onClick={() => field.ref.current?.click()}
-                          >
-                            <Upload className="h-3 w-3 mr-1" /> Replace
-                          </Button>
                         </div>
                       ) : (
                         // No file staged or uploaded yet

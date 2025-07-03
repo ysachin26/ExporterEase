@@ -206,15 +206,6 @@ const DocumentUploadSection = ({
                 {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
               </Button>
             )}
-            {currentDocState.url && !hasTempFile && currentDocState.status !== "rejected" && (
-              <Button
-                variant="link"
-                className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
-                onClick={handleButtonClick}
-              >
-                <Upload className="h-3 w-3 mr-1" /> Replace
-              </Button>
-            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -1109,9 +1100,20 @@ export default function IECRegistration() {
       {/* Action Buttons */}
       <div className="flex justify-between pt-6 border-t">
         {registrationStatus === "in-progress" ? (
-          <div className="text-yellow-500 font-semibold">
-            Your application is under review. You cannot edit it at this time.
-          </div>
+          <Card className="w-full bg-amber-50 border-amber-200 text-amber-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-amber-900 flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Application Submitted
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm">
+                Your IEC registration application has been submitted and is currently being processed. You can track the
+                progress in the Progress section.
+              </p>
+            </CardContent>
+          </Card>
         ) : registrationStatus === "approved" ? (
           <div className="text-green-500 font-semibold">Congratulations! Your IEC registration is approved.</div>
         ) : registrationStatus === "rejected" ? (
