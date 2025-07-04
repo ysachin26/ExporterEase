@@ -422,6 +422,9 @@ function getUserDocumentFieldName(documentType: string): string | null {
   return documentFieldMap[documentType] || null
 }
 
+// Define profile document types that should NOT be stored in dashboard.registrationSteps.documents
+const PROFILE_DOCUMENT_TYPES = ["aadharCard", "panCard", "photograph", "proofOfAddress"]
+
 // New function to handle file uploads and save URLs
 export async function uploadDocument(formData: FormData) {
   await connectDB()
@@ -465,9 +468,17 @@ export async function uploadDocument(formData: FormData) {
 
     const fileUrl = uploadResult.secure_url
 
-    // Update Dashboard model (existing functionality)
-    if (stepId) {
-      // This is a registration-specific document
+    // Always update User model if a corresponding field exists
+    const userFieldName = getUserDocumentFieldName(documentType)
+    if (userFieldName) {
+      ;(user as any)[userFieldName] = fileUrl
+      await user.save()
+      console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
+    }
+
+    // Only update Dashboard model if it's a registration-specific document AND stepId is provided
+    // Profile documents (aadharCard, panCard, photograph, proofOfAddress) should NOT be stored in dashboard.registrationSteps.documents
+    if (stepId && !PROFILE_DOCUMENT_TYPES.includes(documentType)) {
       const dashboard = await Dashboard.findOne({ userId: user._id })
       if (!dashboard) return { success: false, message: "Dashboard not found" }
 
@@ -489,14 +500,11 @@ export async function uploadDocument(formData: FormData) {
         })
       }
       await dashboard.save()
-    }
-
-    // Update User model (new functionality) - THIS IS THE KEY PART FOR SHARED DOCUMENTS
-    const userFieldName = getUserDocumentFieldName(documentType)
-    if (userFieldName) {
-      ;(user as any)[userFieldName] = fileUrl
-      await user.save()
-      console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
+      console.log(`✅ Document ${documentType} saved to Dashboard step ${stepId} documents.`)
+    } else if (stepId && PROFILE_DOCUMENT_TYPES.includes(documentType)) {
+      console.log(
+        `ℹ️ Profile document ${documentType} not saved to Dashboard step ${stepId} documents (already in User model).`,
+      )
     }
 
     // No need to update dashboard.profileCompletion.completionPercentage here, it's calculated dynamically on fetch
@@ -633,6 +641,12 @@ export async function updateRegistrationDetails(stepId: number, details: Record<
   const currentStepRelevantDocs = relevantDocsForStep[stepId] || []
 
   for (const docName of currentStepRelevantDocs) {
+    // Skip adding profile documents to step.documents
+    if (PROFILE_DOCUMENT_TYPES.includes(docName)) {
+      console.log(`ℹ️ Skipping adding profile document '${docName}' to step ${stepId} documents.`)
+      continue
+    }
+
     const userDocUrl = userDocUrls[docName]
     const existingDocInStep = step.documents.find((d: any) => d.name === docName)
 
@@ -838,7 +852,7 @@ export async function submitRegistrationApplication({
       const formData = new FormData()
       formData.append("file", docInfo.file)
       formData.append("documentType", docInfo.docType)
-      formData.append("stepId", stepId.toString())
+      formData.append("stepId", stepId.toString()) // Pass stepId to uploadDocument
 
       try {
         const result = await uploadDocument(formData)
