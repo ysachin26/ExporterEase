@@ -27,8 +27,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument } from "@/app/actions"
-import { updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
+import { getDashboardData, submitRegistrationApplication } from "@/app/actions"
 import { useRouter } from "next/navigation" // Import useRouter for navigation
 
 interface DocumentUploadState {
@@ -72,6 +71,8 @@ interface BusinessDocuments {
 }
 
 interface ProfileData {
+  id: string // Add user ID
+  dashboardId: string // Add dashboard ID
   fullName: string
   email: string
   mobile: string
@@ -115,6 +116,8 @@ export default function GSTRegistration() {
   const [premiseType, setPremiseType] = useState<"rented" | "owned" | "other" | "">("")
   const [otherPremiseDescription, setOtherPremiseDescription] = useState("")
   const [profileData, setProfileData] = useState<ProfileData>({
+    id: "",
+    dashboardId: "",
     fullName: "",
     email: "",
     mobile: "",
@@ -231,6 +234,13 @@ export default function GSTRegistration() {
     const fetchInitialData = async () => {
       try {
         const data = await getDashboardData()
+
+        if (!data.user || !data.dashboard) {
+          console.error("Failed to fetch user or dashboard data:", data.error)
+          // Optionally redirect or show a global error message
+          return
+        }
+
         setDashboardData(data) // Store dashboard data
 
         // Map business type from database to form values
@@ -254,6 +264,8 @@ export default function GSTRegistration() {
 
         setBusinessType(mappedBusinessType)
         setProfileData({
+          id: data.user.id, // Set user ID
+          dashboardId: data.dashboard._id, // Set dashboard ID
           fullName: data.user.fullName,
           email: data.user.email,
           mobile: data.user.mobileNo,
@@ -277,7 +289,6 @@ export default function GSTRegistration() {
           // ICEGATE Documents
           gstCertificate: data.user.gstCertificate || "",
           bankDocumentUrl: data.user.bankDocumentUrl || "",
-          // AD Code Documents
           adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
           // GST Premise Documents
           rentAgreementUrl: data.user.rentAgreementUrl || "",
@@ -383,7 +394,6 @@ export default function GSTRegistration() {
     }
   }, [stagedFiles])
 
-  // Get registration status
   const getRegistrationStatus = () => {
     const step = dashboardData?.registrationSteps?.find((s: any) => s.id === 2) // GST is step 2
     return step?.status || "not-started"
@@ -541,12 +551,6 @@ export default function GSTRegistration() {
     if (premiseType === "other") {
       detailsToSave.otherPremiseDescription = otherPremiseDescription
     }
-    const updateDetailsResult = await updateRegistrationDetails(2, detailsToSave) // Step ID 2 for GST
-    if (!updateDetailsResult.success) {
-      alert(`Failed to save GST details: ${updateDetailsResult.message}`)
-      setIsSaving(false)
-      return
-    }
 
     const filesToUpload: { type: string; file: File }[] = []
 
@@ -566,87 +570,23 @@ export default function GSTRegistration() {
       filesToUpload.push({ type: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
-    // Set uploading states
-    const newUploadingStates: Record<string, boolean> = {}
-    filesToUpload.forEach((f) => (newUploadingStates[f.type] = true))
-    setUploadingStates(newUploadingStates)
+    const result = await submitRegistrationApplication({
+      stepId: 2, // GST step ID
+      details: detailsToSave,
+      filesToUpload: filesToUpload.map((f) => ({ docType: f.type, file: f.file })), // Map to expected format
+      userId: profileData.id,
+      dashboardId: profileData.dashboardId,
+      registrationType: "GST Registration",
+      registrationName: profileData.businessName || profileData.fullName,
+    })
 
-    let allUploadsSuccessful = true
-    const updatedDocuments: Record<string, DocumentUploadState> = { ...documents }
-    const updatedBusinessDocuments: BusinessDocuments = { ...businessDocuments }
-    const updatedBankDetails: BankDetails = { ...bankDetails }
-
-    if (filesToUpload.length > 0) {
-      for (const { type, file } of filesToUpload) {
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("documentType", type)
-        formData.append("stepId", "2") // Corrected stepId for GST
-
-        try {
-          const result = await uploadDocument(formData)
-          if (result.success) {
-            // Update the main state variables with the new URL and status
-            if (type === "cancelledCheque") {
-              updatedBankDetails.cancelledChequeUrl = result.fileUrl
-              updatedBankDetails.cancelledChequeStatus = "uploaded"
-              updatedBankDetails.tempCancelledCheque = null
-              updatedBankDetails.tempCancelledChequeUrl = null
-            } else if (
-              type === "authorizationLetter" ||
-              type === "partnershipDeed" ||
-              type === "llpAgreement" || // Added llpAgreement
-              type === "certificateOfIncorporation" ||
-              type === "moaAoa"
-            ) {
-              ;(updatedBusinessDocuments as any)[`${type}Url`] = result.fileUrl
-              ;(updatedBusinessDocuments as any)[`${type}Status`] = "uploaded"
-            } else {
-              // This handles rentAgreement, electricityBill, noc, propertyProof, electricityBillOwned, and now otherProof
-              updatedDocuments[type] = {
-                name: file.name,
-                file: file,
-                uploaded: true,
-                url: result.fileUrl,
-                status: "uploaded",
-              }
-            }
-            // Clear the staged file after successful upload
-            handleRemoveStagedFile(
-              type,
-              (document.getElementById(type) as HTMLInputElement)?.files?.[0]
-                ? (document.getElementById(type) as HTMLInputElement)
-                : (null as any),
-            ) // Pass ref if available
-          } else {
-            console.error(`Upload of ${type} failed:`, result.message)
-            allUploadsSuccessful = false
-          }
-        } catch (error) {
-          console.error(`Upload error for ${type}:`, error)
-          allUploadsSuccessful = false
-        } finally {
-          setUploadingStates((prev) => ({ ...prev, [type]: false }))
-        }
-      }
-    }
-
-    setDocuments(updatedDocuments)
-    setBusinessDocuments(updatedBusinessDocuments)
-    setBankDetails(updatedBankDetails)
     setIsSaving(false)
 
-    if (allUploadsSuccessful) {
-      // Mark the GST step as completed
-      const updateResult = await updateRegistrationStep(2, "in-progress") // Corrected stepId for GST
-      if (updateResult.success) {
-        alert("All documents uploaded and form submitted successfully! Your GST application is submitted.")
-        router.push("/dashboard/progress") // Redirect to progress page
-      } else {
-        alert(`GST application submitted, but failed to update step status: ${updateResult.message}`)
-      }
+    if (result.success) {
+      alert(result.message)
+      router.push("/dashboard/progress") // Redirect to progress page
     } else {
-      alert("Some uploads failed. Please check the console for details.")
+      alert(`Submission failed: ${result.message}`)
     }
   }
 
@@ -1428,160 +1368,191 @@ export default function GSTRegistration() {
               </div>
             </div>
 
-            <DocumentUploadSection
-              docType="cancelledCheque"
-              label="Cancelled Cheque, Bank Statement, or Passbook (Front Page)"
-              description="Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification."
-              required={false}
-              currentDocState={{
-                name: "cancelledCheque",
-                file: bankDetails.cancelledCheque,
-                uploaded: !!bankDetails.cancelledChequeUrl,
-                url: bankDetails.cancelledChequeUrl,
-                status: bankDetails.cancelledChequeStatus,
-                tempFile: bankDetails.tempCancelledCheque,
-                tempUrl: bankDetails.tempCancelledChequeUrl,
-              }}
-              onFileSelect={handleBankDocumentSelect}
-              colorClass="indigo"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Certificates from Other Registrations */}
-      {(profileData.iecCertificate ||
-        profileData.dscCertificate ||
-        profileData.gstCertificate ||
-        profileData.adCodeLetterFromBankUrl) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-emerald-600" />
-              Available Certificates from Other Registrations
-            </CardTitle>
-            <CardDescription>Certificates you've obtained from other registration processes</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-              <h4 className="font-medium text-emerald-900 mb-3">📜 Available Certificates:</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {profileData.iecCertificate && (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Award className="h-4 w-4 text-emerald-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">IEC Certificate</div>
-                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
-                        <Check className="h-3 w-3" />
-                        <span>Available</span>
-                      </div>
+            <div className="space-y-2">
+              <Label>Cancelled Cheque, Bank Statement, or Passbook (Front Page)</Label>
+              <p className="text-sm text-gray-600 mb-2">
+                Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification.
+              </p>
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                onClick={() => cancelledChequeRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleBankDocumentSelect(e.target.files?.[0] || null)}
+                  className="hidden"
+                  ref={cancelledChequeRef}
+                />
+                {bankDetails.tempCancelledChequeUrl ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">{bankDetails.tempCancelledCheque?.name}</span>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.open(bankDetails.tempCancelledChequeUrl, "_blank")
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> Preview
+                      </Button>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-red-600 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setBankDetails((prev) => ({
+                            ...prev,
+                            cancelledCheque: null,
+                            tempCancelledCheque: null,
+                            tempCancelledChequeUrl: undefined,
+                          }))
+                          if (cancelledChequeRef.current) {
+                            cancelledChequeRef.current.value = ""
+                          }
+                        }}
+                      >
+                        <XCircle className="h-3 w-3 mr-1" /> Remove
+                      </Button>
                     </div>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-primary text-xs"
-                      onClick={() => window.open(profileData.iecCertificate, "_blank")}
-                    >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
                   </div>
-                )}
-
-                {profileData.dscCertificate && (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Award className="h-4 w-4 text-emerald-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">DSC Certificate</div>
-                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
-                        <Check className="h-3 w-3" />
-                        <span>Available</span>
-                      </div>
-                    </div>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-primary text-xs"
-                      onClick={() => window.open(profileData.dscCertificate, "_blank")}
+                ) : bankDetails.cancelledChequeUrl ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    {bankDetails.cancelledChequeStatus === "rejected" ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <Check className="h-5 w-5 text-green-600" />
+                    )}
+                    <span
+                      className={`text-sm font-medium ${
+                        bankDetails.cancelledChequeStatus === "rejected" ? "text-red-600" : "text-green-600"
+                      }`}
                     >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
+                      {bankDetails.cancelledChequeStatus === "rejected" ? "Rejected" : "Uploaded"}
+                    </span>
+                    {/* 🔥 SHOW "SHARED FROM PREVIOUS REGISTRATION" MESSAGE */}
+                    <div className="flex items-center gap-1 text-blue-600 text-xs">
+                      <Check className="h-3 w-3" />
+                      <span>Shared from previous registration</span>
+                    </div>
+                    {bankDetails.cancelledChequeUrl && (
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.open(bankDetails.cancelledChequeUrl, "_blank")
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    )}
+                    {bankDetails.cancelledChequeStatus === "rejected" && (
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-blue-600 text-xs mt-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          cancelledChequeRef.current?.click()
+                        }}
+                      >
+                        <Upload className="h-3 w-3 mr-1" /> Re-upload
+                      </Button>
+                    )}
                   </div>
-                )}
-
-                {profileData.gstCertificate && (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Award className="h-4 w-4 text-emerald-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">GST Certificate</div>
-                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
-                        <Check className="h-3 w-3" />
-                        <span>Available</span>
-                      </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+                    <div className="text-sm text-gray-600">
+                      <span className="text-primary">Click to upload</span>
                     </div>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-primary text-xs"
-                      onClick={() => window.open(profileData.gstCertificate, "_blank")}
-                    >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
-                  </div>
-                )}
-
-                {profileData.adCodeLetterFromBankUrl && (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Award className="h-4 w-4 text-emerald-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">AD Code Letter</div>
-                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
-                        <Check className="h-3 w-3" />
-                        <span>Available</span>
-                      </div>
-                    </div>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-primary text-xs"
-                      onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
-                    >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
+                    <p className="text-xs text-gray-500">Supported formats: .pdf, .jpg, .jpeg, .png</p>
                   </div>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Action Buttons - Hide when status is "in-progress" */}
-      {getRegistrationStatus() !== "in-progress" && (
-        <div className="flex gap-4 pt-6">
-          <Button variant="outline" className="flex-1 bg-transparent" disabled={isSaving}>
-            Save & Continue Later
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            className="flex-1 bg-teal-600 hover:bg-teal-700"
-            disabled={progress < 100 || isSaving}
-          >
-            {isSaving ? "Submitting..." : "Submit GST Application"}
-          </Button>
-        </div>
-      )}
+      {/* GST Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-emerald-600" />
+            GST Information
+          </CardTitle>
+          <CardDescription>Important information about Goods and Services Tax</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+            <h4 className="font-medium text-emerald-900 mb-3">📈 What is GST?</h4>
+            <ul className="text-emerald-800 text-sm space-y-2">
+              <li>• Goods and Services Tax is an indirect tax</li>
+              <li>• Replaced multiple cascading taxes levied by central and state governments</li>
+              <li>• A comprehensive, multi-stage, destination-based tax</li>
+              <li>• Levied on every value addition</li>
+              <li>• Ensures a seamless flow of input tax credit</li>
+            </ul>
+          </div>
 
-      {/* Show status message when in progress */}
-      {getRegistrationStatus() === "in-progress" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 mr-2" />
-            <div>
-              <h4 className="font-medium text-amber-900">Application Submitted</h4>
-              <p className="text-amber-700 text-sm">
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-900 mb-3">📋 Benefits of GST Registration:</h4>
+            <ul className="text-blue-800 text-sm space-y-2">
+              <li>• Legal recognition as a supplier of goods or services</li>
+              <li>• Eligibility to collect GST from customers and pass on input tax credit</li>
+              <li>• Improves business credibility and compliance</li>
+              <li>• Access to government tenders and contracts</li>
+              <li>• Easier inter-state business operations</li>
+            </ul>
+          </div>
+
+          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+            <h4 className="font-medium text-amber-900 mb-3">⚠️ Important Notes:</h4>
+            <ul className="text-amber-800 text-sm space-y-2">
+              <li>• Mandatory for businesses with turnover above specified thresholds</li>
+              <li>• Different types of GST registration (e.g., Regular, Composition)</li>
+              <li>• Requires regular filing of GST returns</li>
+              <li>• Penalties for non-compliance can be severe</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Action Buttons */}
+      <div className="flex justify-between pt-6 border-t">
+        {getRegistrationStatus() === "in-progress" ? (
+          <Card className="w-full bg-amber-50 border-amber-200 text-amber-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-amber-900 flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Application Submitted
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm">
                 Your GST registration application has been submitted and is currently being processed. You can track the
                 progress in the Progress section.
               </p>
-            </div>
-          </div>
-        </div>
-      )}
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/registration">Save & Continue Later</Link>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSubmit}
+              disabled={progress < 100 || isSaving}
+            >
+              {isSaving ? "Submitting..." : `Submit GST Application (${progress}%)`}
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

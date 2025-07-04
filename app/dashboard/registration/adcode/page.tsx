@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
+import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
@@ -50,6 +50,8 @@ interface BankDetails {
 }
 
 interface ProfileData {
+  id: string // Add user ID
+  dashboardId: string // Add dashboard ID
   fullName: string
   email: string
   mobile: string
@@ -244,6 +246,8 @@ const DocumentUploadSection = ({
 
 export default function ADCodeRegistration() {
   const [profileData, setProfileData] = useState<ProfileData>({
+    id: "",
+    dashboardId: "",
     fullName: "",
     email: "",
     mobile: "",
@@ -297,6 +301,8 @@ export default function ADCodeRegistration() {
       try {
         const data = await getDashboardData()
         setProfileData({
+          id: data.user.id, // Set user ID
+          dashboardId: data.dashboard._id, // Set dashboard ID
           fullName: data.user.fullName,
           email: data.user.email,
           mobile: data.user.mobileNo,
@@ -541,7 +547,6 @@ export default function ADCodeRegistration() {
       return
     }
 
-    // Store text input values in Dashboard model
     const detailsToSave = {
       businessAddress: businessDetails.businessAddress,
       iecNumber: businessDetails.iecNumber,
@@ -551,19 +556,14 @@ export default function ADCodeRegistration() {
       branchName: bankDetails.branchName,
       ifscCode: bankDetails.ifscCode,
     }
-    const updateDetailsResult = await updateRegistrationDetails(6, detailsToSave) // Step ID 6 for AD Code
-    if (!updateDetailsResult.success) {
-      alert(`Failed to save AD Code details: ${updateDetailsResult.message}`)
-      return
-    }
 
-    const documentsToUpload: { docType: string; file: File; isBankDoc?: boolean }[] = []
+    const filesToUpload: { docType: string; file: File }[] = []
 
     // General documents
     for (const key in documents) {
       const doc = documents[key]
       if (doc.tempFile && (!doc.url || doc.status === "rejected")) {
-        documentsToUpload.push({ docType: key, file: doc.tempFile })
+        filesToUpload.push({ docType: key, file: doc.tempFile })
       }
     }
 
@@ -572,73 +572,24 @@ export default function ADCodeRegistration() {
       bankDetails.tempCancelledCheque &&
       (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
     ) {
-      documentsToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque, isBankDoc: true })
+      filesToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
-    let allUploadsSuccessful = true
-    if (documentsToUpload.length > 0) {
-      for (const docInfo of documentsToUpload) {
-        const formData = new FormData()
-        formData.append("file", docInfo.file)
-        formData.append("documentType", docInfo.docType)
-        formData.append("stepId", "6") // Corrected stepId for AD Code
+    const result = await submitRegistrationApplication({
+      stepId: 6, // AD Code step ID
+      details: detailsToSave,
+      filesToUpload: filesToUpload,
+      userId: profileData.id,
+      dashboardId: profileData.dashboardId,
+      registrationType: "AD Code",
+      registrationName: profileData.businessName || profileData.fullName,
+    })
 
-        try {
-          const result = await uploadDocument(formData)
-          if (result.success) {
-            if (docInfo.isBankDoc) {
-              setBankDetails((prev) => ({
-                ...prev,
-                cancelledChequeUrl: result.fileUrl,
-                cancelledChequeStatus: "uploaded",
-                tempCancelledCheque: null,
-                tempCancelledChequeUrl: null,
-              }))
-            } else {
-              setDocuments((prev) => ({
-                ...prev,
-                [docInfo.docType]: {
-                  ...prev[docInfo.docType],
-                  url: result.fileUrl,
-                  status: "uploaded",
-                  tempFile: null,
-                  tempUrl: null,
-                },
-              }))
-            }
-            console.log(`Successfully uploaded ${docInfo.docType}`)
-          } else {
-            allUploadsSuccessful = false
-            console.error(`Upload failed for ${docInfo.docType}:`, result.message)
-            if (docInfo.isBankDoc) {
-              setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-            } else {
-              setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-            }
-          }
-        } catch (error) {
-          allUploadsSuccessful = false
-          console.error(`Upload error for ${docInfo.docType}:`, error)
-          if (docInfo.isBankDoc) {
-            setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-          } else {
-            setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-          }
-        }
-      }
-    }
-
-    if (allUploadsSuccessful) {
-      // Mark the AD Code step as completed
-      const updateResult = await updateRegistrationStep(6, "in-progress") // Corrected stepId for AD Code
-      if (updateResult.success) {
-        alert("All documents uploaded successfully! Your AD Code application is submitted.")
-        router.push("/dashboard/progress") // Redirect to progress page
-      } else {
-        alert(`AD Code application submitted, but failed to update step status: ${updateResult.message}`)
-      }
+    if (result.success) {
+      alert(result.message)
+      router.push("/dashboard/progress") // Redirect to progress page
     } else {
-      alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
+      alert(`Submission failed: ${result.message}`)
     }
   }
 

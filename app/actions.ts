@@ -3,8 +3,9 @@
 import { connectDB } from "@/lib/db"
 import User from "@/models/User"
 import Dashboard from "@/models/Dashboard"
+import PurchasedService from "@/models/PurchasedService" // Import the new model
 import bcrypt from "bcryptjs"
-import type mongoose from "mongoose"
+import mongoose from "mongoose" // Import mongoose
 import { v2 as cloudinary } from "cloudinary"
 import { redirect } from "next/navigation"
 
@@ -151,12 +152,8 @@ export async function login(prevState: any, formData: FormData) {
 
 // Logout action
 export async function logout() {
-  // In a real application with sessions/JWT, you would:
-  // - Clear server-side session
-  // - Invalidate JWT tokens
-  // - Clear cookies
-
-  // For now, we'll just redirect to home page
+  // In a real application, you would set up a session or JWT here.
+  // For this demo, we'll just redirect to home page
   redirect("/")
 }
 
@@ -228,11 +225,22 @@ export async function getDashboardData() {
       proofOfAddressUrl: "",
     })
     await newUser.save()
-  user = newUser.toObject() as any
+    user = newUser.toObject() as any
   }
 
   if (!user) {
-    return { error: "User not found" }
+    return {
+      user: null,
+      dashboard: null,
+      hasStartedRegistration: false,
+      profileCompletion: 0,
+      registrationSteps: [],
+      overallProgress: 0,
+      notifications: [],
+      unreadNotificationCount: 0,
+      isProfileComplete: false,
+      error: "User not found",
+    }
   }
 
   let dashboard = await Dashboard.findOne({ userId: user._id }).lean()
@@ -243,11 +251,24 @@ export async function getDashboardData() {
   }
 
   if (!dashboard) {
-    return { error: "Dashboard not found" }
+    return {
+      user: user,
+      dashboard: null,
+      hasStartedRegistration: false,
+      profileCompletion: calculateProfileCompletionPercentage(user),
+      registrationSteps: [],
+      overallProgress: 0,
+      notifications: [],
+      unreadNotificationCount: 0,
+      isProfileComplete: calculateProfileCompletionPercentage(user) === 100,
+      error: "Dashboard not found",
+    }
   }
 
   // Calculate overall progress dynamically
-  const completedStepsCount = (dashboard as any).registrationSteps.filter((step: any) => step.status === "completed").length
+  const completedStepsCount = (dashboard as any).registrationSteps.filter(
+    (step: any) => step.status === "completed",
+  ).length
   const overallProgress =
     (dashboard as any).registrationSteps.length > 0
       ? Math.round((completedStepsCount / (dashboard as any).registrationSteps.length) * 100)
@@ -315,6 +336,12 @@ export async function getDashboardData() {
       otherProofUrl: user.otherProofUrl || "",
       adCodeLetterFromBankUrl: user.adCodeLetterFromBankUrl || "",
       bankDocumentUrl: user.bankDocumentUrl || "",
+    },
+    dashboard: {
+      _id: dashboard._id.toString(),
+      hasStartedRegistration: dashboard.hasStartedRegistration,
+      registrationSteps: transformedRegistrationSteps,
+      notifications: transformedNotifications,
     },
     hasStartedRegistration: (dashboard as any).hasStartedRegistration,
     profileCompletion: profileCompletionPercentage, // Dynamically calculated
@@ -420,7 +447,11 @@ export async function uploadDocument(formData: FormData) {
     const buffer = Buffer.from(arrayBuffer)
 
     // Get appropriate upload options based on file type
-    const uploadOptions = getCloudinaryUploadOptions(file, documentType, (user._id as mongoose.Types.ObjectId).toString())
+    const uploadOptions = getCloudinaryUploadOptions(
+      file,
+      documentType,
+      (user._id as mongoose.Types.ObjectId).toString(),
+    )
 
     // Upload to Cloudinary with appropriate resource type
     const uploadResult = (await new Promise((resolve, reject) => {
@@ -771,5 +802,85 @@ export async function verifyEmail(email: string) {
   } catch (error: any) {
     console.error("Email verification error:", error)
     return { success: false, message: `Email verification failed: ${error.message}` }
+  }
+}
+
+// NEW SERVER ACTION: Centralized function to submit registration applications
+export async function submitRegistrationApplication({
+  stepId,
+  details,
+  filesToUpload,
+  userId,
+  dashboardId,
+  registrationType,
+  registrationName,
+}: {
+  stepId: number
+  details: Record<string, any>
+  filesToUpload: { docType: string; file: File }[]
+  userId: string
+  dashboardId: string
+  registrationType: string
+  registrationName: string
+}) {
+  await connectDB()
+
+  try {
+    // 1. Update registration details (text inputs)
+    const updateDetailsResult = await updateRegistrationDetails(stepId, details)
+    if (!updateDetailsResult.success) {
+      return { success: false, message: `Failed to save details: ${updateDetailsResult.message}` }
+    }
+
+    // 2. Upload documents
+    let allUploadsSuccessful = true
+    for (const docInfo of filesToUpload) {
+      const formData = new FormData()
+      formData.append("file", docInfo.file)
+      formData.append("documentType", docInfo.docType)
+      formData.append("stepId", stepId.toString())
+
+      try {
+        const result = await uploadDocument(formData)
+        if (!result.success) {
+          allUploadsSuccessful = false
+          console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+          // Continue processing other documents even if one fails
+        }
+      } catch (error) {
+        allUploadsSuccessful = false
+        console.error(`Upload error for ${docInfo.docType}:`, error)
+        // Continue processing other documents even if one fails
+      }
+    }
+
+    if (!allUploadsSuccessful) {
+      // If some uploads failed, we might still want to proceed with marking as in-progress
+      // but inform the user. For now, we'll return failure.
+      return { success: false, message: "Some documents failed to upload. Please check and re-upload if necessary." }
+    }
+
+    // 3. Create PurchasedService entry
+    const newPurchasedService = new PurchasedService({
+      userId: new mongoose.Types.ObjectId(userId),
+      dashboardId: new mongoose.Types.ObjectId(dashboardId),
+      registrationType,
+      registrationName,
+      purchasedPrice: 1000, // Default price as requested
+      purchasedAt: new Date(),
+    })
+    await newPurchasedService.save()
+    console.log(`✅ Purchased service recorded: ${registrationType} for user ${userId}`)
+
+    // 4. Update registration step status to "in-progress"
+    const updateStepResult = await updateRegistrationStep(stepId, "in-progress")
+    if (!updateStepResult.success) {
+      return { success: false, message: `Failed to update step status: ${updateStepResult.message}` }
+    }
+
+    return { success: true, message: `${registrationType} application submitted successfully!` }
+  } catch (error: any) {
+    console.error(`Error submitting ${registrationType} application:`, error)
+    return { success: false, message: `Application submission failed: ${error.message}` }
   }
 }

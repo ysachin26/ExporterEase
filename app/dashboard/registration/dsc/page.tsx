@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Link from "next/link"
-import { getDashboardData, uploadDocument, updateRegistrationStep, updateRegistrationDetails } from "@/app/actions" // Import updateRegistrationDetails
+import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
 
 interface DocumentUploadState {
@@ -38,6 +38,8 @@ interface DocumentUploadState {
 }
 
 interface ProfileData {
+  id: string // Add user ID
+  dashboardId: string // Add dashboard ID
   fullName: string
   email: string
   mobile: string
@@ -199,6 +201,8 @@ const DocumentUploadSection = ({
 
 export default function DSCRegistration() {
   const [profileData, setProfileData] = useState<ProfileData>({
+    id: "",
+    dashboardId: "",
     fullName: "",
     email: "",
     mobile: "",
@@ -240,6 +244,8 @@ export default function DSCRegistration() {
       try {
         const data = await getDashboardData()
         setProfileData({
+          id: data.user.id, // Set user ID
+          dashboardId: data.dashboard._id, // Set dashboard ID
           fullName: data.user.fullName,
           email: data.user.email,
           mobile: data.user.mobileNo,
@@ -403,18 +409,12 @@ export default function DSCRegistration() {
       return
     }
 
-    // Store text input values in Dashboard model
     const detailsToSave: Record<string, any> = {
       dscType: dscType,
     }
     if (dscType === "organization") {
       detailsToSave.designation = businessDetails.designation
       detailsToSave.organizationName = businessDetails.organizationName
-    }
-    const updateDetailsResult = await updateRegistrationDetails(4, detailsToSave) // Step ID 4 for DSC
-    if (!updateDetailsResult.success) {
-      alert(`Failed to save DSC details: ${updateDetailsResult.message}`)
-      return
     }
 
     const documentsToUpload: { docType: string; file: File }[] = []
@@ -426,52 +426,21 @@ export default function DSCRegistration() {
       }
     }
 
-    let allUploadsSuccessful = true
-    if (documentsToUpload.length > 0) {
-      for (const docInfo of documentsToUpload) {
-        const formData = new FormData()
-        formData.append("file", docInfo.file)
-        formData.append("documentType", docInfo.docType)
-        formData.append("stepId", "4") // Corrected stepId for DSC
+    const result = await submitRegistrationApplication({
+      stepId: 4, // DSC step ID
+      details: detailsToSave,
+      filesToUpload: documentsToUpload,
+      userId: profileData.id,
+      dashboardId: profileData.dashboardId,
+      registrationType: "DSC Registration",
+      registrationName: profileData.businessName || profileData.fullName,
+    })
 
-        try {
-          const result = await uploadDocument(formData)
-          if (result.success) {
-            setDocuments((prev) => ({
-              ...prev,
-              [docInfo.docType]: {
-                ...prev[docInfo.docType],
-                url: result.fileUrl,
-                status: "uploaded",
-                tempFile: null,
-                tempUrl: null,
-              },
-            }))
-            console.log(`Successfully uploaded ${docInfo.docType}`)
-          } else {
-            allUploadsSuccessful = false
-            console.error(`Upload failed for ${docInfo.docType}:`, result.message)
-            setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-          }
-        } catch (error) {
-          allUploadsSuccessful = false
-          console.error(`Upload error for ${docInfo.docType}:`, error)
-          setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-        }
-      }
-    }
-
-    if (allUploadsSuccessful) {
-      // Mark the DSC step as completed
-      const updateResult = await updateRegistrationStep(4, "in-progress") // Corrected stepId for DSC
-      if (updateResult.success) {
-        alert("All documents uploaded successfully! Your DSC application is submitted.")
-        router.push("/dashboard/progress") // Redirect to progress page
-      } else {
-        alert(`DSC application submitted, but failed to update step status: ${updateResult.message}`)
-      }
+    if (result.success) {
+      alert(result.message)
+      router.push("/dashboard/progress") // Redirect to progress page
     } else {
-      alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
+      alert(`Submission failed: ${result.message}`)
     }
   }
 
@@ -567,10 +536,10 @@ export default function DSCRegistration() {
 
                 {profileData.iecCertificate && (
                   <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <Award className="h-4 w-4 text-purple-600" />
+                    <Award className="h-4 w-4 text-emerald-600" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">IEC Certificate</div>
-                      <div className="flex items-center gap-1 text-purple-600 text-xs">
+                      <div className="flex items-center gap-1 text-emerald-600 text-xs">
                         <Check className="h-3 w-3" />
                         <span>From IEC Registration</span>
                       </div>
