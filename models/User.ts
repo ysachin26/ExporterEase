@@ -46,17 +46,6 @@ interface BusinessInfo {
   incorporationDate?: Date
 }
 
-// Registration numbers interface (centralized)
-interface RegistrationNumbers {
-  gst?: string
-  iec?: string
-  dsc?: string
-  icegate?: string
-  adcode?: string
-  pan?: string
-  aadhar?: string
-}
-
 // Bank details interface
 interface BankDetails {
   accountNumber?: string
@@ -66,14 +55,11 @@ interface BankDetails {
   accountHolderName?: string
 }
 
-// Profile completion interface for better tracking
-interface ProfileCompletion {
-  basicDetails: boolean
-  contactDetails: boolean
-  businessDetails: boolean
-  documents: boolean
-  percentage: number
-  lastUpdated: Date
+// User preferences interface
+interface UserPreferences {
+  language: string
+  notifications: boolean
+  theme: string
 }
 
 export interface IUser extends Document {
@@ -93,83 +79,18 @@ export interface IUser extends Document {
   businessDescription?: string
   businessAddress?: string
   
-  // Profile completion tracking
-  profileCompletion: ProfileCompletion
-  
-  // Document URLs (organized)
-  documents: DocumentUrls
-  
-  // Registration numbers
-  registrationNumbers: RegistrationNumbers
+  // User preferences
+  preferences: UserPreferences
   
   // Metadata
   lastLoginAt?: Date
   loginCount: number
-  preferences: {
-    language: string
-    notifications: boolean
-    theme: string
-  }
   
   // Methods
   calculateProfileCompletion(): number
   getDocumentUrl(documentType: string): string
   updateLastLogin(): void
 }
-
-// Document URLs Schema
-const DocumentUrlsSchema = new Schema({
-  // Basic profile documents
-  aadharCard: { type: String, default: "" },
-  panCard: { type: String, default: "" },
-  photograph: { type: String, default: "" },
-  proofOfAddress: { type: String, default: "" },
-  
-  // Registration certificates
-  gstCertificate: { type: String, default: "" },
-  iecCertificate: { type: String, default: "" },
-  dscCertificate: { type: String, default: "" },
-  icegateCertificate: { type: String, default: "" },
-  adcodeCertificate: { type: String, default: "" },
-  
-  // Business entity documents
-  authorizationLetter: { type: String, default: "" },
-  partnershipDeed: { type: String, default: "" },
-  llpAgreement: { type: String, default: "" },
-  certificateOfIncorporation: { type: String, default: "" },
-  moaAoa: { type: String, default: "" },
-  
-  // Bank documents
-  cancelledCheque: { type: String, default: "" },
-  bankDocument: { type: String, default: "" },
-  adCodeLetterFromBank: { type: String, default: "" },
-  
-  // GST specific documents
-  rentAgreement: { type: String, default: "" },
-  electricityBill: { type: String, default: "" },
-  noc: { type: String, default: "" },
-  propertyProof: { type: String, default: "" },
-  electricityBillOwned: { type: String, default: "" },
-  otherProof: { type: String, default: "" }
-}, { _id: false })
-
-// Registration Numbers Schema
-const RegistrationNumbersSchema = new Schema({
-  gst: { type: String, default: "" },
-  iec: { type: String, default: "" },
-  dsc: { type: String, default: "" },
-  icegate: { type: String, default: "" },
-  adcode: { type: String, default: "" }
-}, { _id: false })
-
-// Profile Completion Schema
-const ProfileCompletionSchema = new Schema({
-  basicDetails: { type: Boolean, default: false },
-  contactDetails: { type: Boolean, default: false },
-  businessDetails: { type: Boolean, default: false },
-  documents: { type: Boolean, default: false },
-  percentage: { type: Number, default: 0, min: 0, max: 100 }
-}, { _id: false })
 
 // User Preferences Schema
 const PreferencesSchema = new Schema({
@@ -252,22 +173,14 @@ const UserSchema: Schema = new Schema(
       maxlength: [300, "Business address cannot exceed 300 characters"]
     },
 
-    // Organized data
-    documents: {
-      type: DocumentUrlsSchema,
-      default: () => ({})
-    },
-    registrationNumbers: {
-      type: RegistrationNumbersSchema,
-      default: () => ({})
-    },
-    profileCompletion: {
-      type: ProfileCompletionSchema,
-      default: () => ({})
-    },
+    // User preferences
     preferences: {
       type: PreferencesSchema,
-      default: () => ({})
+      default: () => ({
+        language: "en",
+        notifications: true,
+        theme: "light"
+      })
     },
 
     // Metadata
@@ -327,44 +240,19 @@ UserSchema.methods.calculateProfileCompletion = function(): number {
   if (this.businessType) completed++
   
   // Essential documents (4 fields)
-  if (this.aadharCardUrl || this.documents?.aadharCard) completed++
-  if (this.panCardUrl || this.documents?.panCard) completed++
-  if (this.photographUrl || this.documents?.photograph) completed++
-  if (this.proofOfAddressUrl || this.documents?.proofOfAddress) completed++
+  if (this.aadharCardUrl) completed++
+  if (this.panCardUrl) completed++
+  if (this.photographUrl) completed++
+  if (this.proofOfAddressUrl) completed++
 
   const percentage = Math.round((completed / total) * 100)
-  
-  // Update profile completion tracking
-  if (!this.profileCompletion) {
-    this.profileCompletion = {
-      basicDetails: false,
-      contactDetails: false,
-      businessDetails: false,
-      documents: false,
-      percentage: 0
-    }
-  }
-  
-  this.profileCompletion.basicDetails = !!(this.fullName && this.fullName.trim())
-  this.profileCompletion.contactDetails = !!(this.mobileNo && this.email && this.emailVerified)
-  this.profileCompletion.businessDetails = !!(this.businessName && this.businessType)
-  this.profileCompletion.documents = !!(this.aadharCardUrl || this.documents?.aadharCard) && 
-                                      !!(this.panCardUrl || this.documents?.panCard) &&
-                                      !!(this.photographUrl || this.documents?.photograph) &&
-                                      !!(this.proofOfAddressUrl || this.documents?.proofOfAddress)
-  this.profileCompletion.percentage = percentage
   
   return percentage
 }
 
 UserSchema.methods.getDocumentUrl = function(documentType: string): string {
-  // Check new documents structure first, then fall back to legacy fields
-  if (this.documents && this.documents[documentType]) {
-    return this.documents[documentType]
-  }
-  
-  // Legacy field mapping
-  const legacyMapping: { [key: string]: string } = {
+  // Direct field mapping
+  const fieldMapping: { [key: string]: string } = {
     'aadharCard': this.aadharCardUrl,
     'panCard': this.panCardUrl,
     'photograph': this.photographUrl,
@@ -377,7 +265,7 @@ UserSchema.methods.getDocumentUrl = function(documentType: string): string {
     'bankDocument': this.bankDocumentUrl
   }
   
-  return legacyMapping[documentType] || ''
+  return fieldMapping[documentType] || ''
 }
 
 UserSchema.methods.updateLastLogin = function(): void {
@@ -400,7 +288,6 @@ UserSchema.index({ businessType: 1 })
 UserSchema.index({ status: 1 })
 UserSchema.index({ createdAt: -1 })
 UserSchema.index({ lastLoginAt: -1 })
-UserSchema.index({ 'profileCompletion.percentage': -1 })
 
 // Compound indexes
 UserSchema.index({ businessType: 1, status: 1 })

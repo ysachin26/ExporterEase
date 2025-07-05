@@ -47,12 +47,11 @@ export default function SettingsPage() {
     sessionTimeout: "30",
   })
 
-  // Preferences state
+  // Preferences state - only the required fields
   const [preferences, setPreferences] = useState({
     language: "en",
-    timezone: "Asia/Kolkata",
-    currency: "INR",
-    dateFormat: "DD/MM/YYYY",
+    notifications: true,
+    theme: "light",
   })
 
   const handleProfileSave = async () => {
@@ -481,14 +480,15 @@ export default function SettingsPage() {
               <CardDescription>Customize your application experience</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                {/* Language Setting */}
                 <div className="space-y-2">
                   <Label>Language</Label>
                   <Select
                     value={preferences.language}
                     onValueChange={(value) => setPreferences({ ...preferences, language: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full md:w-64">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -501,55 +501,31 @@ export default function SettingsPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Timezone</Label>
-                  <Select
-                    value={preferences.timezone}
-                    onValueChange={(value) => setPreferences({ ...preferences, timezone: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
-                      <SelectItem value="UTC">UTC</SelectItem>
-                      <SelectItem value="America/New_York">America/New_York (EST)</SelectItem>
-                      <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Notifications Setting */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Notifications</Label>
+                    <p className="text-sm text-gray-500">Enable or disable all notifications</p>
+                  </div>
+                  <Switch
+                    checked={preferences.notifications}
+                    onCheckedChange={(checked) => setPreferences({ ...preferences, notifications: checked })}
+                  />
                 </div>
 
+                {/* Theme Setting */}
                 <div className="space-y-2">
-                  <Label>Currency</Label>
+                  <Label>Theme</Label>
                   <Select
-                    value={preferences.currency}
-                    onValueChange={(value) => setPreferences({ ...preferences, currency: value })}
+                    value={preferences.theme}
+                    onValueChange={(value) => setPreferences({ ...preferences, theme: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full md:w-64">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="INR">INR (₹)</SelectItem>
-                      <SelectItem value="USD">USD ($)</SelectItem>
-                      <SelectItem value="EUR">EUR (€)</SelectItem>
-                      <SelectItem value="GBP">GBP (£)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Date Format</Label>
-                  <Select
-                    value={preferences.dateFormat}
-                    onValueChange={(value) => setPreferences({ ...preferences, dateFormat: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                      <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

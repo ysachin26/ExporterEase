@@ -59,7 +59,6 @@ interface LegacyUser {
   documents?: any
   registrationNumbers?: any
   profileCompletion?: any
-  preferences?: any
 }
 
 async function migrateUserData() {
@@ -69,15 +68,8 @@ async function migrateUserData() {
     await connectDB()
     console.log('✅ Connected to database')
     
-    // Get all users that need migration (those without the new structure)
-    const users = await User.find({
-      $or: [
-        { documents: { $exists: false } },
-        { registrationNumbers: { $exists: false } },
-        { profileCompletion: { $exists: false } },
-        { preferences: { $exists: false } }
-      ]
-    })
+    // Get all users for basic data integrity check
+    const users = await User.find({})
     
     console.log(`📊 Found ${users.length} users to migrate`)
     
@@ -88,63 +80,7 @@ async function migrateUserData() {
       try {
         console.log(`🔄 Migrating user: ${user.fullName} (${user.mobileNo})`)
         
-        // Migrate to new documents structure
-        if (!user.documents) {
-          user.documents = {
-            // Basic profile documents
-            aadharCard: user.aadharCardUrl || '',
-            panCard: user.panCardUrl || '',
-            photograph: user.photographUrl || '',
-            proofOfAddress: user.proofOfAddressUrl || '',
-            
-            // Registration certificates
-            gstCertificate: user.gstCertificate || '',
-            iecCertificate: user.iecCertificate || '',
-            dscCertificate: user.dscCertificate || '',
-            icegateCertificate: user.icegateCertificate || '',
-            adcodeCertificate: user.adcodeCertificate || '',
-            
-            // Business entity documents
-            authorizationLetter: user.authorizationLetterUrl || '',
-            partnershipDeed: user.partnershipDeedUrl || '',
-            llpAgreement: user.llpAgreementUrl || '',
-            certificateOfIncorporation: user.certificateOfIncorporationUrl || '',
-            moaAoa: user.moaAoaUrl || '',
-            
-            // Bank documents
-            cancelledCheque: user.cancelledChequeUrl || '',
-            bankDocument: user.bankDocumentUrl || '',
-            adCodeLetterFromBank: user.adCodeLetterFromBankUrl || '',
-            
-            // GST specific documents
-            rentAgreement: user.rentAgreementUrl || '',
-            electricityBill: user.electricityBillUrl || '',
-            noc: user.nocUrl || '',
-            propertyProof: user.propertyProofUrl || '',
-            electricityBillOwned: user.electricityBillOwnedUrl || '',
-            otherProof: user.otherProofUrl || ''
-          }
-        }
-        
-        // Migrate to new registration numbers structure
-        if (!user.registrationNumbers) {
-          user.registrationNumbers = {
-            gst: user.gstNumber || '',
-            iec: user.iecNumber || '',
-            dsc: user.dscNumber || '',
-            icegate: user.icegateNumber || '',
-            adcode: user.adcodeNumber || ''
-          }
-        }
-        
-        // Initialize preferences if not exists
-        if (!user.preferences) {
-          user.preferences = {
-            language: 'en',
-            notifications: true,
-            theme: 'light'
-          }
-        }
+        // Initialize basic fields that might be missing
         
         // Initialize login tracking if not exists
         if (!user.loginCount) {
@@ -154,6 +90,15 @@ async function migrateUserData() {
         // Set default status if not exists
         if (!user.status) {
           user.status = user.emailVerified && user.isMobileVerified ? 'active' : 'pending_verification'
+        }
+        
+        // Initialize preferences if not exists
+        if (!user.preferences) {
+          user.preferences = {
+            language: 'en',
+            notifications: true,
+            theme: 'light'
+          }
         }
         
         // Calculate and set profile completion
@@ -282,27 +227,9 @@ async function cleanupLegacyFields() {
         'gstNumber', 'iecNumber', 'dscNumber', 'icegateNumber', 'adcodeNumber'
       ]
       
-      // Only clean up if documents object exists (migration completed)
-      if (user.documents) {
-        // Mark legacy fields for removal (unset them)
-        const unsetFields: any = {}
-        
-        for (const field of legacyFields) {
-          if ((user as any)[field] !== undefined) {
-            unsetFields[field] = 1
-            needsUpdate = true
-          }
-        }
-        
-        if (needsUpdate) {
-          await User.updateOne(
-            { _id: user._id },
-            { $unset: unsetFields }
-          )
-          cleanedCount++
-          console.log(`✅ Cleaned legacy fields for user: ${user.fullName}`)
-        }
-      }
+      // For now, we're keeping the legacy fields as the main storage
+      // This cleanup function is disabled since we removed the organized objects
+      console.log(`ℹ️ Keeping legacy fields for user: ${user.fullName} (no cleanup needed)`)
     }
     
     console.log(`📊 Legacy Field Cleanup Summary:`)

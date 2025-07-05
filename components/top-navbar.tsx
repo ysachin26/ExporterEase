@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, ChevronDown, User, Settings, LogOut, Phone, Mail, Building } from "lucide-react"
+import { Bell, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +37,7 @@ interface UserData {
   photographUrl?: string
 }
 
-function UserProfileDropdown() {
+function UserProfileDisplay() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -62,14 +62,6 @@ function UserProfileDropdown() {
     fetchUserData()
   }, [])
 
-  const handleLogout = async () => {
-    try {
-      await logout()
-    } catch (error) {
-      console.error("Logout error:", error)
-    }
-  }
-
   const getInitials = (fullName: string) => {
     return fullName
       .split(' ')
@@ -89,84 +81,18 @@ function UserProfileDropdown() {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={userData.photographUrl} alt={userData.fullName} />
-            <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-medium">
-              {getInitials(userData.fullName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col items-start">
-            <span className="text-sm font-medium text-gray-900">{userData.fullName}</span>
-            <span className="text-xs text-gray-500">{userData.businessName}</span>
-          </div>
-          <ChevronDown className="h-4 w-4 text-gray-500" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        {/* User Info Header */}
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={userData.photographUrl} alt={userData.fullName} />
-              <AvatarFallback className="bg-blue-100 text-blue-600 text-lg font-medium">
-                {getInitials(userData.fullName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h3 className="font-medium text-gray-900">{userData.fullName}</h3>
-              <p className="text-sm text-gray-600">{userData.businessName}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <Building className="h-3 w-3 text-gray-400" />
-                <span className="text-xs text-gray-500">{userData.businessType}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-3 space-y-1">
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <Mail className="h-3 w-3" />
-              <span>{userData.email || 'No email added'}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <Phone className="h-3 w-3" />
-              <span>{userData.mobileNo}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Menu Items */}
-        <div className="py-1">
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/profile" className="flex items-center gap-3 px-4 py-2 cursor-pointer">
-              <User className="h-4 w-4" />
-              <span>My Profile</span>
-            </Link>
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings" className="flex items-center gap-3 px-4 py-2 cursor-pointer">
-              <Settings className="h-4 w-4" />
-              <span>Settings</span>
-            </Link>
-          </DropdownMenuItem>
-        </div>
-
-        <DropdownMenuSeparator />
-        
-        <div className="py-1">
-          <DropdownMenuItem 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-2 cursor-pointer text-red-600 focus:text-red-600"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Sign Out</span>
-          </DropdownMenuItem>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2 px-3 py-2">
+      <Avatar className="h-8 w-8">
+        <AvatarImage src={userData.photographUrl} alt={userData.fullName} />
+        <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-medium">
+          {getInitials(userData.fullName)}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col items-start">
+        <span className="text-sm font-medium text-gray-900">{userData.fullName}</span>
+        <span className="text-xs text-gray-500">{userData.businessName}</span>
+      </div>
+    </div>
   )
 }
 
@@ -257,8 +183,8 @@ export function TopNavbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* User Profile Dropdown */}
-        <UserProfileDropdown />
+        {/* User Profile Display (Static) */}
+        <UserProfileDisplay />
 
         {/* Language Selector - Rightmost */}
         <DropdownMenu>

@@ -97,12 +97,11 @@ async function performDryRun() {
   console.log('\n🔍 Analyzing current database state...')
   
   try {
-    // Count users needing migration
+    // Count users that might need basic data updates
     const usersNeedingMigration = await User.countDocuments({
       $or: [
-        { documents: { $exists: false } },
-        { registrationNumbers: { $exists: false } },
-        { profileCompletion: { $exists: false } },
+        { status: { $exists: false } },
+        { loginCount: { $exists: false } },
         { preferences: { $exists: false } }
       ]
     })
@@ -164,9 +163,9 @@ async function generateMigrationReport() {
   try {
     const totalUsers = await User.countDocuments({})
     const migratedUsers = await User.countDocuments({
-      documents: { $exists: true },
-      registrationNumbers: { $exists: true },
-      profileCompletion: { $exists: true }
+      status: { $exists: true },
+      loginCount: { $exists: true },
+      preferences: { $exists: true }
     })
     
     const usersWithLegacyFields = await User.countDocuments({
