@@ -29,6 +29,7 @@ import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getDashboardData, submitRegistrationApplication } from "@/app/actions"
 import { useRouter } from "next/navigation" // Import useRouter for navigation
+import { useToast } from "@/hooks/use-toast"
 
 interface DocumentUploadState {
   name: string
@@ -129,7 +130,7 @@ export default function GSTRegistration() {
     businessName: "",
     authorizationLetterUrl: "",
     partnershipDeedUrl: "",
-    llpAgreementUrl: "", // Initialize
+    llpAgreementUrl: "",
     certificateOfIncorporationUrl: "",
     moaAoaUrl: "",
     cancelledChequeUrl: "",
@@ -228,6 +229,7 @@ export default function GSTRegistration() {
   const otherProofRef = useRef<HTMLInputElement>(null)
 
   const router = useRouter() // Initialize router
+  const { toast } = useToast()
 
   // Fetch profile data and registration documents on component mount
   useEffect(() => {
@@ -492,6 +494,15 @@ export default function GSTRegistration() {
   const handleStageFileUpload = (docKey: string, file: File | null) => {
     if (!file) return
 
+    if (file.size > 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "❌ File Size Too Large",
+        description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
+      })
+      return
+    }
+
     // Revoke previous URL if exists for this type
     if (stagedFiles[docKey]?.previewUrl) {
       URL.revokeObjectURL(stagedFiles[docKey]?.previewUrl!)
@@ -516,6 +527,15 @@ export default function GSTRegistration() {
 
   const handleBankDocumentSelect = (file: File | null) => {
     if (!file) return
+
+    if (file.size > 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "❌ File Size Too Large",
+        description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
+      })
+      return
+    }
 
     if (bankDetails.tempCancelledChequeUrl) {
       URL.revokeObjectURL(bankDetails.tempCancelledChequeUrl)
@@ -662,7 +682,17 @@ export default function GSTRegistration() {
             ref={inputRef}
             type="file"
             accept={accept}
-            onChange={(e) => handleStageFileUpload(docKey, e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file && file.size > 1024 * 1024) {
+                toast({
+                  title: "File size too large.",
+                  description: "Please upload a file smaller than 1MB.",
+                })
+                return
+              }
+              handleStageFileUpload(docKey, file)
+            }}
             className="hidden"
             id={docKey}
             disabled={isUploading}
@@ -730,7 +760,6 @@ export default function GSTRegistration() {
                   <Upload className="h-3 w-3 mr-1" /> Re-upload
                 </Button>
               )}
-              {/* Removed the "Replace" button for pre-fetched/shared documents */}
             </div>
           ) : (
             <div className="space-y-2">
@@ -1481,20 +1510,19 @@ export default function GSTRegistration() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-emerald-600" />
+            <CreditCard className="h-5 w-5 text-emerald-600" />
             GST Information
           </CardTitle>
           <CardDescription>Important information about Goods and Services Tax</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-            <h4 className="font-medium text-emerald-900 mb-3">📈 What is GST?</h4>
+            <h4 className="font-medium text-emerald-900 mb-3">🧾 What is GST?</h4>
             <ul className="text-emerald-800 text-sm space-y-2">
-              <li>• Goods and Services Tax is an indirect tax</li>
-              <li>• Replaced multiple cascading taxes levied by central and state governments</li>
-              <li>• A comprehensive, multi-stage, destination-based tax</li>
-              <li>• Levied on every value addition</li>
-              <li>• Ensures a seamless flow of input tax credit</li>
+              <li>• Goods and Services Tax is an indirect tax levied on the supply of goods and services</li>
+              <li>• Replaced multiple indirect taxes in India (e.g., VAT, Service Tax, Excise Duty)</li>
+              <li>• Aims to simplify the tax structure and reduce cascading effect of taxes</li>
+              <li>• Mandatory for businesses exceeding a certain turnover threshold</li>
             </ul>
           </div>
 
@@ -1502,20 +1530,10 @@ export default function GSTRegistration() {
             <h4 className="font-medium text-blue-900 mb-3">📋 Benefits of GST Registration:</h4>
             <ul className="text-blue-800 text-sm space-y-2">
               <li>• Legal recognition as a supplier of goods or services</li>
-              <li>• Eligibility to collect GST from customers and pass on input tax credit</li>
-              <li>• Improves business credibility and compliance</li>
-              <li>• Access to government tenders and contracts</li>
-              <li>• Easier inter-state business operations</li>
-            </ul>
-          </div>
-
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <h4 className="font-medium text-amber-900 mb-3">⚠️ Important Notes:</h4>
-            <ul className="text-amber-800 text-sm space-y-2">
-              <li>• Mandatory for businesses with turnover above specified thresholds</li>
-              <li>• Different types of GST registration (e.g., Regular, Composition)</li>
-              <li>• Requires regular filing of GST returns</li>
-              <li>• Penalties for non-compliance can be severe</li>
+              <li>• Eligibility to collect GST from customers and claim Input Tax Credit (ITC)</li>
+              <li>• Improves business credibility and expands market reach</li>
+              <li>• Simplifies tax compliance with a single tax regime</li>
+              <li>• Reduces overall tax burden for eligible businesses</li>
             </ul>
           </div>
         </CardContent>
@@ -1543,12 +1561,8 @@ export default function GSTRegistration() {
             <Button variant="outline" asChild>
               <Link href="/dashboard/registration">Save & Continue Later</Link>
             </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={handleSubmit}
-              disabled={progress < 100 || isSaving}
-            >
-              {isSaving ? "Submitting..." : `Submit GST Application (${progress}%)`}
+            <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleSubmit} disabled={progress < 100}>
+              Submit GST Application ({progress}%)
             </Button>
           </>
         )}

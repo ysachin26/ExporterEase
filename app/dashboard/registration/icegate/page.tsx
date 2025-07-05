@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
+import { useToast } from "@/hooks/use-toast"
 
 interface DocumentUploadState {
   name: string
@@ -41,11 +42,11 @@ interface BankDetails {
   bankName: string
   branchName: string
   ifscCode: string
-  bankDocument: File | null // Changed from cancelledCheque to bankDocument
-  bankDocumentUrl?: string // Changed from cancelledChequeUrl
-  bankDocumentStatus?: "pending" | "uploaded" | "verified" | "rejected"
-  tempBankDocument?: File | null // Changed from tempCancelledCheque
-  tempBankDocumentUrl?: string // Changed from tempCancelledChequeUrl
+  cancelledCheque: File | null
+  cancelledChequeUrl?: string
+  cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
+  tempCancelledCheque?: File | null
+  tempCancelledChequeUrl?: string
 }
 
 interface ProfileData {
@@ -81,7 +82,8 @@ interface ProfileData {
   dscCertificate: string
   // AD Code Registration Documents
   adCodeLetterFromBankUrl: string
-  bankDocumentUrl: string // Added for ICEGATE specific document
+  // ICEGATE Registration Documents
+  bankDocumentUrl: string // Specific to ICEGATE
 }
 
 // Helper component for document upload sections
@@ -93,9 +95,6 @@ const DocumentUploadSection = ({
   currentDocState,
   onFileSelect,
   colorClass = "purple",
-  showCertificateRedirect = false,
-  certificateRedirectUrl = "",
-  certificateRedirectText = "",
 }: {
   docType: string
   label: string
@@ -104,9 +103,6 @@ const DocumentUploadSection = ({
   currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
-  showCertificateRedirect?: boolean
-  certificateRedirectUrl?: string
-  certificateRedirectText?: string
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -245,12 +241,12 @@ export default function ICEGATERegistration() {
     electricityBillOwnedUrl: "",
     otherProofUrl: "",
     dscCertificate: "",
-    bankDocumentUrl: "",
     adCodeLetterFromBankUrl: "",
+    bankDocumentUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
-    businessAddress: "",
     iecNumber: "",
+    gstinNumber: "",
     dscNumber: "",
   })
   const [bankDetails, setBankDetails] = useState<BankDetails>({
@@ -258,15 +254,16 @@ export default function ICEGATERegistration() {
     bankName: "",
     branchName: "",
     ifscCode: "",
-    bankDocument: null,
-    bankDocumentUrl: "",
-    bankDocumentStatus: "pending",
-    tempBankDocument: null,
-    tempBankDocumentUrl: undefined,
+    cancelledCheque: null,
+    cancelledChequeUrl: "",
+    cancelledChequeStatus: "pending",
+    tempCancelledCheque: null,
+    tempCancelledChequeUrl: undefined,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
+  const { toast } = useToast()
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -302,10 +299,10 @@ export default function ICEGATERegistration() {
           propertyProofUrl: data.user.propertyProofUrl || "",
           electricityBillOwnedUrl: data.user.electricityBillOwnedUrl || "",
           otherProofUrl: data.user.otherProofUrl || "",
-          // DSC Documents
           dscCertificate: data.user.dscCertificate || "",
           // AD Code Documents
           adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
+          // ICEGATE Documents
           bankDocumentUrl: data.user.bankDocumentUrl || "",
         })
 
@@ -317,8 +314,8 @@ export default function ICEGATERegistration() {
 
         // Pre-fill text fields from dashboard details
         setBusinessDetails({
-          businessAddress: icegateStepDetails.businessAddress || "",
           iecNumber: icegateStepDetails.iecNumber || "",
+          gstinNumber: icegateStepDetails.gstinNumber || "",
           dscNumber: icegateStepDetails.dscNumber || "",
         })
         setBankDetails((prev) => ({
@@ -351,22 +348,28 @@ export default function ICEGATERegistration() {
         // Handle IEC Certificate
         newDocumentsState.iecCertificate = getDocState("iecCertificate", data.user.iecCertificate)
 
+        // Handle GST Certificate
+        newDocumentsState.gstCertificate = getDocState("gstCertificate", data.user.gstCertificate)
+
         // Handle DSC Certificate
         newDocumentsState.dscCertificate = getDocState("dscCertificate", data.user.dscCertificate)
+
+        // Handle Bank Document (specific to ICEGATE)
+        newDocumentsState.bankDocument = getDocState("bankDocument", data.user.bankDocumentUrl)
 
         // Handle Authorization Letter (conditional, shared)
         newDocumentsState.authorizationLetter = getDocState("authorizationLetter", data.user.authorizationLetterUrl)
 
-        // Handle Bank Document (specific to ICEGATE)
-        newBankDetailsState.bankDocumentUrl =
-          data.user.bankDocumentUrl || icegateStepDocuments.find((d) => d.name === "bankDocument")?.url
-        newBankDetailsState.bankDocument = newBankDetailsState.bankDocumentUrl ? ({} as File) : null
-        newBankDetailsState.bankDocumentStatus =
-          (data.user.bankDocumentUrl
+        // Handle Cancelled Cheque (shared, optional)
+        newBankDetailsState.cancelledChequeUrl =
+          data.user.cancelledChequeUrl || icegateStepDocuments.find((d) => d.name === "cancelledCheque")?.url
+        newBankDetailsState.cancelledCheque = newBankDetailsState.cancelledChequeUrl ? ({} as File) : null
+        newBankDetailsState.cancelledChequeStatus =
+          (data.user.cancelledChequeUrl
             ? "uploaded"
-            : icegateStepDocuments.find((d) => d.name === "bankDocument")?.status) || "pending"
-        newBankDetailsState.tempBankDocument = null
-        newBankDetailsState.tempBankDocumentUrl = null
+            : icegateStepDocuments.find((d) => d.name === "cancelledCheque")?.status) || "pending"
+        newBankDetailsState.tempCancelledCheque = null
+        newBankDetailsState.tempCancelledChequeUrl = null
 
         setDocuments(newDocumentsState)
         setBankDetails(newBankDetailsState)
@@ -383,9 +386,9 @@ export default function ICEGATERegistration() {
       Object.values(documents).forEach((doc) => {
         if (doc.tempUrl) URL.revokeObjectURL(doc.tempUrl)
       })
-      if (bankDetails.tempBankDocumentUrl) URL.revokeObjectURL(bankDetails.tempBankDocumentUrl)
+      if (bankDetails.tempCancelledChequeUrl) URL.revokeObjectURL(bankDetails.tempCancelledChequeUrl)
     }
-  }, [documents, bankDetails.tempBankDocumentUrl])
+  }, [documents, bankDetails.tempCancelledChequeUrl])
 
   // Map business types to document requirements
   const getBusinessTypeKey = (businessType: string) => {
@@ -416,6 +419,7 @@ export default function ICEGATERegistration() {
       case "authorizationLetter":
         return businessTypeKey !== "individual" // Required for all except individual
       case "iecCertificate":
+      case "gstCertificate":
       case "dscCertificate":
       case "bankDocument":
         return true // Required for ICEGATE for all business types
@@ -426,7 +430,7 @@ export default function ICEGATERegistration() {
 
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 12 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, iecNumber, dscNumber, iecCertificate, dscCertificate, bankDocument
+    let total = 10 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, iecNumber, gstinNumber, dscNumber, bankDocument
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -437,8 +441,8 @@ export default function ICEGATERegistration() {
     if (profileData.mobile.trim()) completed++
 
     // Business details
-    if (businessDetails.businessAddress.trim()) completed++
     if (businessDetails.iecNumber.trim()) completed++
+    if (businessDetails.gstinNumber.trim()) completed++
     if (businessDetails.dscNumber.trim()) completed++
 
     // Documents: Check for either uploaded URL, temp file, or shared documents
@@ -448,13 +452,18 @@ export default function ICEGATERegistration() {
     )
       completed++
     if (
+      (documents.gstCertificate?.url || documents.gstCertificate?.tempFile || profileData.gstCertificate) &&
+      documents.gstCertificate?.status !== "rejected"
+    )
+      completed++
+    if (
       (documents.dscCertificate?.url || documents.dscCertificate?.tempFile || profileData.dscCertificate) &&
       documents.dscCertificate?.status !== "rejected"
     )
       completed++
     if (
-      (bankDetails.bankDocument?.url || bankDetails.tempBankDocument) &&
-      bankDetails.bankDocumentStatus !== "rejected"
+      (documents.bankDocument?.url || documents.bankDocument?.tempFile) &&
+      documents.bankDocument?.status !== "rejected"
     )
       completed++
 
@@ -473,10 +482,18 @@ export default function ICEGATERegistration() {
     // Bank details are optional, so not included in progress calculation
 
     return Math.round((completed / total) * 100)
-  }, [profileData, businessDetails, documents, bankDetails])
+  }, [profileData, businessDetails, documents])
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
+
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "File size too large.",
+        description: "Please upload a file smaller than 1MB.",
+      })
+      return
+    }
 
     if (documents[docType]?.tempUrl) {
       URL.revokeObjectURL(documents[docType].tempUrl!)
@@ -498,28 +515,36 @@ export default function ICEGATERegistration() {
   const handleBankDocumentSelect = (file: File | null) => {
     if (!file) return
 
-    if (bankDetails.tempBankDocumentUrl) {
-      URL.revokeObjectURL(bankDetails.tempBankDocumentUrl)
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "File size too large.",
+        description: "Please upload a file smaller than 1MB.",
+      })
+      return
+    }
+
+    if (bankDetails.tempCancelledChequeUrl) {
+      URL.revokeObjectURL(bankDetails.tempCancelledChequeUrl)
     }
 
     setBankDetails((prev) => ({
       ...prev,
-      bankDocument: file,
-      tempBankDocument: file,
-      tempBankDocumentUrl: URL.createObjectURL(file),
-      bankDocumentStatus: "pending",
+      cancelledCheque: file,
+      tempCancelledCheque: file,
+      tempCancelledChequeUrl: URL.createObjectURL(file),
+      cancelledChequeStatus: "pending",
     }))
   }
 
   const handleSubmitApplication = async () => {
-    if (calculateProgress() < 100) {
+    if (progress < 100) {
       alert("Please complete all required fields and upload all necessary documents.")
       return
     }
 
     const detailsToSave = {
-      businessAddress: businessDetails.businessAddress,
       iecNumber: businessDetails.iecNumber,
+      gstinNumber: businessDetails.gstinNumber,
       dscNumber: businessDetails.dscNumber,
       accountNumber: bankDetails.accountNumber,
       bankName: bankDetails.bankName,
@@ -537,12 +562,12 @@ export default function ICEGATERegistration() {
       }
     }
 
-    // Bank document (optional)
+    // Bank cancelled cheque (optional)
     if (
-      bankDetails.tempBankDocument &&
-      (!bankDetails.bankDocumentUrl || bankDetails.bankDocumentStatus === "rejected")
+      bankDetails.tempCancelledCheque &&
+      (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
     ) {
-      filesToUpload.push({ docType: "bankDocument", file: bankDetails.tempBankDocument })
+      filesToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
     const result = await submitRegistrationApplication({
@@ -620,10 +645,7 @@ export default function ICEGATERegistration() {
       </Card>
 
       {/* Certificates from Other Registrations */}
-      {(profileData.gstCertificate ||
-        profileData.iecCertificate ||
-        profileData.dscCertificate ||
-        profileData.adCodeLetterFromBankUrl) && (
+      {(profileData.gstCertificate || profileData.iecCertificate || profileData.dscCertificate) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -689,26 +711,6 @@ export default function ICEGATERegistration() {
                         variant="link"
                         className="p-0 h-auto text-primary text-xs mt-1"
                         onClick={() => window.open(profileData.dscCertificate, "_blank")}
-                      >
-                        <Eye className="h-3 w-3 mr-1" /> View
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {profileData.adCodeLetterFromBankUrl && (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                    <CreditCard className="h-4 w-4 text-blue-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">AD Code Letter</div>
-                      <div className="flex items-center gap-1 text-blue-600 text-xs">
-                        <Check className="h-3 w-3" />
-                        <span>From AD Code Registration</span>
-                      </div>
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-primary text-xs mt-1"
-                        onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
                       >
                         <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
@@ -809,19 +811,6 @@ export default function ICEGATERegistration() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="businessAddress">
-              Business Address <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="businessAddress"
-              placeholder="Enter complete business address"
-              value={businessDetails.businessAddress}
-              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, businessAddress: e.target.value }))}
-            />
-            <p className="text-xs text-gray-500">Complete address where business operations are conducted</p>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="iecNumber">
               IEC Number <span className="text-red-500">*</span>
             </Label>
@@ -843,9 +832,30 @@ export default function ICEGATERegistration() {
             currentDocState={documents.iecCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("iecCertificate", file)}
             colorClass="purple"
-            showCertificateRedirect={true}
-            certificateRedirectUrl="/dashboard/registration/iec"
-            certificateRedirectText="Don't have IEC Certificate?"
+          />
+
+          <div className="space-y-2">
+            <Label htmlFor="gstinNumber">
+              GSTIN Number <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="gstinNumber"
+              placeholder="Enter your 15-digit GSTIN"
+              value={businessDetails.gstinNumber}
+              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, gstinNumber: e.target.value }))}
+              maxLength={15}
+            />
+            <p className="text-xs text-gray-500">Your Goods and Services Tax Identification Number</p>
+          </div>
+
+          <DocumentUploadSection
+            docType="gstCertificate"
+            label="GST Certificate"
+            description="Upload your GST certificate copy"
+            required={true}
+            currentDocState={documents.gstCertificate || { name: "", file: null, uploaded: false }}
+            onFileSelect={(file) => handleDocumentSelect("gstCertificate", file)}
+            colorClass="teal"
           />
 
           <div className="space-y-2">
@@ -869,9 +879,16 @@ export default function ICEGATERegistration() {
             currentDocState={documents.dscCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("dscCertificate", file)}
             colorClass="indigo"
-            showCertificateRedirect={true}
-            certificateRedirectUrl="/dashboard/registration/dsc"
-            certificateRedirectText="Don't have DSC Certificate?"
+          />
+
+          <DocumentUploadSection
+            docType="bankDocument"
+            label="Bank Document (Cancelled Cheque / Bank Statement)"
+            description="Upload a cancelled cheque or bank statement for bank details verification"
+            required={true}
+            currentDocState={documents.bankDocument || { name: "", file: null, uploaded: false }}
+            onFileSelect={(file) => handleDocumentSelect("bankDocument", file)}
+            colorClass="emerald"
           />
         </CardContent>
       </Card>
@@ -900,7 +917,7 @@ export default function ICEGATERegistration() {
         </Card>
       )}
 
-      {/* Bank Details (Optional for Sole Proprietorship) */}
+      {/* Bank Details (Optional) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -959,34 +976,34 @@ export default function ICEGATERegistration() {
             </div>
 
             <div className="space-y-2">
-              <Label>Bank Document (e.g., Bank Statement, Passbook Front Page)</Label>
+              <Label>Cancelled Cheque, Bank Statement, or Passbook (Front Page)</Label>
               <p className="text-sm text-gray-600 mb-2">
-                Upload a bank statement or the front page of your passbook for account verification.
+                Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification.
               </p>
               <div
                 className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-slate-400 transition-colors cursor-pointer"
-                onClick={() => document.getElementById("bankDocument")?.click()}
+                onClick={() => document.getElementById("bankCancelledCheque")?.click()}
               >
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => handleBankDocumentSelect(e.target.files?.[0] || null)}
                   className="hidden"
-                  id="bankDocument"
+                  id="bankCancelledCheque"
                 />
-                {bankDetails.tempBankDocumentUrl || bankDetails.bankDocumentUrl ? (
+                {bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl ? (
                   <div className="flex flex-col items-center justify-center gap-2">
                     <div className="flex items-center gap-1 text-green-600 text-xs">
                       <Check className="h-3 w-3" />
                       <span>Document Selected</span>
                     </div>
-                    {(bankDetails.tempBankDocumentUrl || bankDetails.bankDocumentUrl) && (
+                    {(bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl) && (
                       <Button
                         variant="link"
                         className="p-0 h-auto text-primary text-xs"
                         onClick={(e) => {
                           e.stopPropagation()
-                          const url = bankDetails.tempBankDocumentUrl || bankDetails.bankDocumentUrl
+                          const url = bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl
                           if (url) window.open(url, "_blank")
                         }}
                       >
@@ -998,7 +1015,7 @@ export default function ICEGATERegistration() {
                       className="p-0 h-auto text-slate-600 text-xs mt-1"
                       onClick={(e) => {
                         e.stopPropagation()
-                        document.getElementById("bankDocument")?.click()
+                        document.getElementById("bankCancelledCheque")?.click()
                       }}
                     >
                       <Upload className="h-3 w-3 mr-1" /> Change / Re-upload
@@ -1023,41 +1040,30 @@ export default function ICEGATERegistration() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-emerald-600" />
+            <CreditCard className="h-5 w-5 text-emerald-600" />
             ICEGATE Information
           </CardTitle>
-          <CardDescription>Important information about Indian Customs Electronic Gateway</CardDescription>
+          <CardDescription>Important information about ICEGATE registration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
             <h4 className="font-medium text-emerald-900 mb-3">🌐 What is ICEGATE?</h4>
             <ul className="text-emerald-800 text-sm space-y-2">
-              <li>• Indian Customs Electronic Gateway is a portal for trade and cargo carriers</li>
-              <li>• Provides e-filing services for various customs documents</li>
-              <li>• Facilitates electronic data interchange between trade and customs</li>
-              <li>• Essential for import/export businesses in India</li>
-              <li>• Enables online payment of customs duties</li>
+              <li>• Indian Customs Electronic Gateway is a portal for trade and customs clearance</li>
+              <li>• Provides e-filing services for various customs documents (e.g., Bill of Entry, Shipping Bill)</li>
+              <li>• Facilitates online payment of customs duties and other charges</li>
+              <li>• Essential for importers and exporters to interact with Indian Customs</li>
             </ul>
           </div>
 
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h4 className="font-medium text-blue-900 mb-3">📋 Benefits of ICEGATE Registration:</h4>
             <ul className="text-blue-800 text-sm space-y-2">
-              <li>• Online filing of import/export declarations (Bills of Entry, Shipping Bills)</li>
-              <li>• Real-time status tracking of consignments</li>
-              <li>• Online payment of customs duties and other charges</li>
-              <li>• Access to various customs-related information and services</li>
-              <li>• Reduces paperwork and processing time</li>
-            </ul>
-          </div>
-
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <h4 className="font-medium text-amber-900 mb-3">⚠️ Important Notes:</h4>
-            <ul className="text-amber-800 text-sm space-y-2">
-              <li>• Requires a valid IEC and DSC for registration</li>
-              <li>• User ID and password are provided upon successful registration</li>
-              <li>• Essential for businesses involved in international trade</li>
-              <li>• Regular updates and compliance checks are necessary</li>
+              <li>• Streamlined customs clearance process</li>
+              <li>• Faster processing of import and export consignments</li>
+              <li>• Online access to customs data and status updates</li>
+              <li>• Reduced paperwork and manual intervention</li>
+              <li>• Enhanced transparency and efficiency in trade operations</li>
             </ul>
           </div>
         </CardContent>

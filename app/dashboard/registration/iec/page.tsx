@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect, useCallback } from "react"
+import type React from "react"
 import {
   ArrowLeft,
   Check,
@@ -10,8 +9,8 @@ import {
   FileText,
   User,
   Building,
-  CreditCard,
   MapPin,
+  CreditCard,
   Clock,
   Eye,
   XCircle,
@@ -24,16 +23,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, submitRegistrationApplication } from "@/app/actions"
+import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
+import { useToast } from "@/hooks/use-toast"
 
 interface DocumentUploadState {
   name: string
-  file: File | null // This will represent the *uploaded* file, or null if not yet uploaded
+  file: File | null
   uploaded: boolean
   url?: string
   status?: "pending" | "uploaded" | "verified" | "rejected"
-  tempFile?: File | null // New: for temporary local storage
+  tempFile?: File | null
   tempUrl?: string
 }
 
@@ -42,7 +42,7 @@ interface BankDetails {
   bankName: string
   branchName: string
   ifscCode: string
-  cancelledCheque: File | null // This will represent the *uploaded* file, or null if not yet uploaded
+  cancelledCheque: File | null
   cancelledChequeUrl?: string
   cancelledChequeStatus?: "pending" | "uploaded" | "verified" | "rejected"
   tempCancelledCheque?: File | null
@@ -50,7 +50,7 @@ interface BankDetails {
 }
 
 interface ProfileData {
-    id: string // Add user ID
+  id: string // Add user ID
   dashboardId: string // Add dashboard ID
   fullName: string
   email: string
@@ -92,30 +92,19 @@ const DocumentUploadSection = ({
   required,
   currentDocState,
   onFileSelect,
-  colorClass = "purple", // Default color
+  colorClass = "purple",
 }: {
   docType: string
   label: string
   description: string
   required: boolean
-  currentDocState:
-    | DocumentUploadState
-    | {
-        name: string
-        file: File | null
-        uploaded: boolean
-        url?: string | undefined
-        status?: "pending" | "uploaded" | "verified" | "rejected" | undefined
-        tempFile?: File | null | undefined
-        tempUrl?: string | null | undefined
-      }
+  currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
-  colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue" // Added all possible colors
+  colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
-  const hasTempFile =
-    (currentDocState as DocumentUploadState).tempFile || (currentDocState as BankDetails).tempCancelledCheque
+  const hasTempFile = currentDocState.tempFile
 
   const getStatusDisplay = (status?: string, hasTemp?: boolean) => {
     if (status === "rejected") {
@@ -154,7 +143,7 @@ const DocumentUploadSection = ({
   }
 
   const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event bubbling
+    e.stopPropagation()
     document.getElementById(fileInputId)?.click()
   }
 
@@ -173,7 +162,6 @@ const DocumentUploadSection = ({
           onChange={(e) => onFileSelect(e.target.files?.[0] || null)}
           className="hidden"
           id={fileInputId}
-          // Disable input if already uploaded and not rejected, and no new temp file is selected
           disabled={!!currentDocState.url && currentDocState.status !== "rejected" && !hasTempFile}
         />
         {displayUrl ? (
@@ -254,8 +242,8 @@ export default function IECRegistration() {
     adCodeLetterFromBankUrl: "",
   })
   const [businessDetails, setBusinessDetails] = useState({
-    natureOfBusiness: "",
     businessAddress: "",
+    natureOfBusiness: "",
   })
   const [bankDetails, setBankDetails] = useState<BankDetails>({
     accountNumber: "",
@@ -266,11 +254,12 @@ export default function IECRegistration() {
     cancelledChequeUrl: "",
     cancelledChequeStatus: "pending",
     tempCancelledCheque: null,
-    tempCancelledChequeUrl: null,
+    tempCancelledChequeUrl: undefined,
   })
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
+  const { toast } = useToast()
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -278,7 +267,7 @@ export default function IECRegistration() {
       try {
         const data = await getDashboardData()
         setProfileData({
-                    id: data.user.id, // Set user ID
+          id: data.user.id, // Set user ID
           dashboardId: data.dashboard._id, // Set dashboard ID
           fullName: data.user.fullName,
           email: data.user.email,
@@ -311,19 +300,18 @@ export default function IECRegistration() {
           // AD Code Documents
           adCodeLetterFromBankUrl: data.user.adCodeLetterFromBankUrl || "",
         })
-        // Pre-fill registration-specific documents and details from dashboard data
+
+        // Pre-fill registration-specific documents from dashboard data
         const iecStep = data.registrationSteps.find((step) => step.id === 3) // Corrected stepId for IEC
         const iecStepDocuments = iecStep?.documents || []
         const iecStepDetails = iecStep?.details || {} // Get stored details
         setRegistrationStatus(iecStep?.status || "") // Set registration status
 
         // Pre-fill text fields from dashboard details
-        setBusinessDetails((prev) => ({
-          ...prev,
-          natureOfBusiness: iecStepDetails.natureOfBusiness || "",
+        setBusinessDetails({
           businessAddress: iecStepDetails.businessAddress || "",
-          businessName: data.user.businessName, // Still pre-fill from user business name
-        }))
+          natureOfBusiness: iecStepDetails.natureOfBusiness || "",
+        })
         setBankDetails((prev) => ({
           ...prev,
           accountNumber: iecStepDetails.accountNumber || "",
@@ -351,17 +339,25 @@ export default function IECRegistration() {
           }
         }
 
-        // Handle shared business entity documents
+        // Handle Authorization Letter (conditional, shared)
         newDocumentsState.authorizationLetter = getDocState("authorizationLetter", data.user.authorizationLetterUrl)
+
+        // Handle Partnership Deed (conditional, shared)
         newDocumentsState.partnershipDeed = getDocState("partnershipDeed", data.user.partnershipDeedUrl)
+
+        // Handle LLP Agreement (conditional, shared)
         newDocumentsState.llpAgreement = getDocState("llpAgreement", data.user.llpAgreementUrl)
+
+        // Handle Certificate of Incorporation (conditional, shared)
         newDocumentsState.certificateOfIncorporation = getDocState(
           "certificateOfIncorporation",
           data.user.certificateOfIncorporationUrl,
         )
+
+        // Handle MOA & AOA (conditional, shared)
         newDocumentsState.moaAoa = getDocState("moaAoa", data.user.moaAoaUrl)
 
-        // Handle Cancelled Cheque (shared, required)
+        // Handle Cancelled Cheque (shared, optional)
         newBankDetailsState.cancelledChequeUrl =
           data.user.cancelledChequeUrl || iecStepDocuments.find((d) => d.name === "cancelledCheque")?.url
         newBankDetailsState.cancelledCheque = newBankDetailsState.cancelledChequeUrl ? ({} as File) : null
@@ -384,7 +380,6 @@ export default function IECRegistration() {
   // Cleanup for temporary URLs
   useEffect(() => {
     return () => {
-      // Revoke all temporary URLs when component unmounts
       Object.values(documents).forEach((doc) => {
         if (doc.tempUrl) URL.revokeObjectURL(doc.tempUrl)
       })
@@ -417,7 +412,6 @@ export default function IECRegistration() {
       case "proofOfAddress":
       case "photograph":
       case "aadhaarCard":
-      case "bankProof":
         return true // Required for all business types for IEC
       case "authorizationLetter":
         return businessTypeKey !== "individual" // Required for all except individual
@@ -426,7 +420,6 @@ export default function IECRegistration() {
       case "llpAgreement":
         return businessTypeKey === "llp"
       case "certificateOfIncorporation":
-        return businessTypeKey === "pvt_ltd"
       case "moaAoa":
         return businessTypeKey === "pvt_ltd"
       default:
@@ -436,7 +429,7 @@ export default function IECRegistration() {
 
   const calculateProgress = useCallback(() => {
     let completed = 0
-    let total = 9 // Base requirements
+    let total = 8 // Base requirements for sole proprietorship: panCard, aadhaarCard, photograph, proofOfAddress, email, mobile, businessAddress, natureOfBusiness
 
     // Basic details (auto-filled from profile)
     if (profileData.panCardUrl) completed++
@@ -447,19 +440,10 @@ export default function IECRegistration() {
     if (profileData.mobile.trim()) completed++
 
     // Business details
-    if (businessDetails.natureOfBusiness.trim()) completed++
     if (businessDetails.businessAddress.trim()) completed++
+    if (businessDetails.natureOfBusiness.trim()) completed++
 
-    // Bank details: Consider complete if either uploaded (url) or temporarily selected (tempCancelledCheque)
-    if (
-      bankDetails.accountNumber.trim() &&
-      bankDetails.ifscCode.trim() &&
-      (bankDetails.cancelledChequeUrl || bankDetails.tempCancelledCheque || profileData.cancelledChequeUrl) &&
-      bankDetails.cancelledChequeStatus !== "rejected"
-    )
-      completed++
-
-    // Add conditional document requirements to total and check for tempFile, url, or shared documents
+    // Documents: Check for either uploaded URL, temp file, or shared documents
     if (isDocumentRequired("authorizationLetter")) {
       total++
       if (
@@ -505,13 +489,22 @@ export default function IECRegistration() {
         completed++
     }
 
+    // Bank details are optional, so not included in progress calculation
+
     return Math.round((completed / total) * 100)
-  }, [profileData, businessDetails, documents, bankDetails])
+  }, [profileData, businessDetails, documents])
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
 
-    // Revoke previous temp URL if exists
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "File size too large.",
+        description: "Please upload a file smaller than 1MB.",
+      })
+      return
+    }
+
     if (documents[docType]?.tempUrl) {
       URL.revokeObjectURL(documents[docType].tempUrl!)
     }
@@ -519,12 +512,12 @@ export default function IECRegistration() {
     setDocuments((prev) => ({
       ...prev,
       [docType]: {
-        ...prev[docType], // Keep existing uploaded status if any
+        ...prev[docType],
         name: file.name,
         tempFile: file,
         tempUrl: URL.createObjectURL(file),
-        uploaded: false, // Mark as not yet uploaded to Cloudinary
-        status: "pending", // Status for local file, will change to 'uploaded' after Cloudinary upload
+        uploaded: false,
+        status: "pending",
       },
     }))
   }
@@ -532,77 +525,62 @@ export default function IECRegistration() {
   const handleBankDocumentSelect = (file: File | null) => {
     if (!file) return
 
-    // Revoke previous temp URL if exists
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "File size too large.",
+        description: "Please upload a file smaller than 1MB.",
+      })
+      return
+    }
+
     if (bankDetails.tempCancelledChequeUrl) {
       URL.revokeObjectURL(bankDetails.tempCancelledChequeUrl)
     }
 
     setBankDetails((prev) => ({
       ...prev,
-      cancelledCheque: file, // This will be the temp file for now
+      cancelledCheque: file,
       tempCancelledCheque: file,
       tempCancelledChequeUrl: URL.createObjectURL(file),
-      cancelledChequeStatus: "pending", // Status for local file
+      cancelledChequeStatus: "pending",
     }))
   }
 
   const handleSubmitApplication = async () => {
-    // First, validate all required fields are filled
-    const progress = calculateProgress()
     if (progress < 100) {
       alert("Please complete all required fields and upload all necessary documents.")
       return
     }
 
-    // Store text input values in Dashboard model
     const detailsToSave = {
-      natureOfBusiness: businessDetails.natureOfBusiness,
       businessAddress: businessDetails.businessAddress,
+      natureOfBusiness: businessDetails.natureOfBusiness,
       accountNumber: bankDetails.accountNumber,
       bankName: bankDetails.bankName,
       branchName: bankDetails.branchName,
       ifscCode: bankDetails.ifscCode,
     }
-    // const updateDetailsResult = await updateRegistrationDetails(3, detailsToSave) // Step ID 3 for IEC
-    // if (!updateDetailsResult.success) {
-    //   alert(`Failed to save IEC details: ${updateDetailsResult.message}`)
-    //   return
-    // }
 
-    // Handle document uploads
-    // const documentsToUpload: { docType: string; file: File; isBankDoc?: boolean }[] = []
-   const filesToUpload: { docType: string; file: File }[] = []
+    const filesToUpload: { docType: string; file: File }[] = []
+
     // General documents
     for (const key in documents) {
       const doc = documents[key]
-      // Only upload if tempFile exists and not already uploaded successfully (or was rejected)
       if (doc.tempFile && (!doc.url || doc.status === "rejected")) {
-        // documentsToUpload.push({ docType: key, file: doc.tempFile })
-         filesToUpload.push({ docType: key, file: doc.tempFile })
+        filesToUpload.push({ docType: key, file: doc.tempFile })
       }
     }
 
-    // Bank cancelled cheque
+    // Bank cancelled cheque (optional)
     if (
       bankDetails.tempCancelledCheque &&
       (!bankDetails.cancelledChequeUrl || bankDetails.cancelledChequeStatus === "rejected")
     ) {
       filesToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque })
-      // documentsToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque, isBankDoc: true })
     }
 
-    // let allUploadsSuccessful = true
-    // if (documentsToUpload.length > 0) {
-    //   for (const docInfo of documentsToUpload) {
-    //     const formData = new FormData()
-    //     formData.append("file", docInfo.file)
-    //     formData.append("documentType", docInfo.docType)
-    //     formData.append("stepId", "3") // Corrected stepId for IEC
-
-    //     try {
-    //       const result = await uploadDocument(formData)
-       const result = await submitRegistrationApplication({
-      stepId: 2, // AD Code step ID
+    const result = await submitRegistrationApplication({
+      stepId: 3, // IEC step ID
       details: detailsToSave,
       filesToUpload: filesToUpload,
       userId: profileData.id,
@@ -610,63 +588,12 @@ export default function IECRegistration() {
       registrationType: "IEC Registration",
       registrationName: profileData.businessName || profileData.fullName,
     })
-          if (result.success) {
-    //         if (docInfo.isBankDoc) {
-    //           setBankDetails((prev) => ({
-    //             ...prev,
-    //             cancelledChequeUrl: result.fileUrl,
-    //             cancelledChequeStatus: "uploaded",
-    //             tempCancelledCheque: null, // Clear temp file after successful upload
-    //             tempCancelledChequeUrl: null,
-    //           }))
-    //         } else {
-    //           setDocuments((prev) => ({
-    //             ...prev,
-    //             [docInfo.docType]: {
-    //               ...prev[docInfo.docType],
-    //               url: result.fileUrl,
-    //               status: "uploaded",
-    //               tempFile: null, // Clear temp file after successful upload
-    //               tempUrl: null,
-    //             },
-    //           }))
-    //         }
-    //         console.log(`Successfully uploaded ${docInfo.docType}`)
-    //       } else {
-    //         allUploadsSuccessful = false
-    //         console.error(`Upload failed for ${docInfo.docType}:`, result.message)
-    //         // Optionally, update status to 'rejected' or show error for this specific document
-    //         if (docInfo.isBankDoc) {
-    //           setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-    //         } else {
-    //           setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-    //         }
-    //       }
-    //     } catch (error) {
-    //       allUploadsSuccessful = false
-    //       console.error(`Upload error for ${docInfo.docType}:`, error)
-    //       if (docInfo.isBankDoc) {
-    //         setBankDetails((prev) => ({ ...prev, cancelledChequeStatus: "rejected" }))
-    //       } else {
-    //         setDocuments((prev) => ({ ...prev, [docInfo.docType]: { ...prev[docInfo.docType], status: "rejected" } }))
-    //       }
-    //     }
-    //   }
-    // }
 
-    // if (allUploadsSuccessful) {
-    //   // Mark the IEC step as completed
-    //   const updateResult = await updateRegistrationStep(3, "in-progress") // Corrected stepId for IEC
-    //   if (updateResult.success) {
-    //     alert("All documents uploaded successfully! Your IEC application is submitted.")
-       alert(result.message)
-        router.push("/dashboard/progress") // Redirect to progress page
-      } else {
-    //     alert(`IEC application submitted, but failed to update step status: ${updateResult.message}`)
-    //   }
-    // } else {
-    //   alert("Some documents failed to upload. Please check the console for details and re-upload if necessary.")
-    alert(`Submission failed: ${result.message}`)
+    if (result.success) {
+      alert(result.message)
+      router.push("/dashboard/progress") // Redirect to progress page
+    } else {
+      alert(`Submission failed: ${result.message}`)
     }
   }
 
@@ -683,7 +610,7 @@ export default function IECRegistration() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">IEC Registration</h1>
-          <p className="text-gray-600 mt-1">Import Export Code registration for international trade</p>
+          <p className="text-gray-600 mt-1">Import Export Code registration</p>
         </div>
       </div>
 
@@ -747,14 +674,14 @@ export default function IECRegistration() {
                       <div className="text-sm font-medium">GST Certificate</div>
                       <div className="flex items-center gap-1 text-green-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from GST Registration</span>
+                        <span>From GST Registration</span>
                       </div>
                       <Button
                         variant="link"
                         className="p-0 h-auto text-primary text-xs mt-1"
                         onClick={() => window.open(profileData.gstCertificate, "_blank")}
                       >
-                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                        <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
                     </div>
                   </div>
@@ -767,14 +694,14 @@ export default function IECRegistration() {
                       <div className="text-sm font-medium">DSC Certificate</div>
                       <div className="flex items-center gap-1 text-indigo-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from DSC Registration</span>
+                        <span>From DSC Registration</span>
                       </div>
                       <Button
                         variant="link"
                         className="p-0 h-auto text-primary text-xs mt-1"
                         onClick={() => window.open(profileData.dscCertificate, "_blank")}
                       >
-                        <Eye className="h-3 w-3 mr-1" /> View Certificate
+                        <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
                     </div>
                   </div>
@@ -787,14 +714,14 @@ export default function IECRegistration() {
                       <div className="text-sm font-medium">AD Code Letter</div>
                       <div className="flex items-center gap-1 text-blue-600 text-xs">
                         <Check className="h-3 w-3" />
-                        <span>Available from AD Code Registration</span>
+                        <span>From AD Code Registration</span>
                       </div>
                       <Button
                         variant="link"
                         className="p-0 h-auto text-primary text-xs mt-1"
                         onClick={() => window.open(profileData.adCodeLetterFromBankUrl, "_blank")}
                       >
-                        <Eye className="h-3 w-3 mr-1" /> View Document
+                        <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
                     </div>
                   </div>
@@ -893,19 +820,6 @@ export default function IECRegistration() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="natureOfBusiness">
-              Nature of Business <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="natureOfBusiness"
-              placeholder="e.g., Export/Import, Trading, Manufacturing, etc."
-              value={businessDetails.natureOfBusiness}
-              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, natureOfBusiness: e.target.value }))}
-            />
-            <p className="text-xs text-gray-500">Specify the primary nature of your import/export business</p>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="businessAddress">
               Business Address <span className="text-red-500">*</span>
             </Label>
@@ -917,6 +831,19 @@ export default function IECRegistration() {
             />
             <p className="text-xs text-gray-500">Complete address where business operations are conducted</p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="natureOfBusiness">
+              Nature of Business <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="natureOfBusiness"
+              placeholder="e.g., Trading, Manufacturing, Service, Consultancy, etc."
+              value={businessDetails.natureOfBusiness}
+              onChange={(e) => setBusinessDetails((prev) => ({ ...prev, natureOfBusiness: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500">Specify the primary nature of your business activities</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -926,11 +853,11 @@ export default function IECRegistration() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-orange-600" />
-              Authorization Letter <span className="text-red-500">*</span>
+              Business Entity Documents <span className="text-red-500">*</span>
             </CardTitle>
             <CardDescription>Required for {profileData.businessType} business type</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
             <DocumentUploadSection
               docType="authorizationLetter"
               label="Authorization Letter / Board Resolution"
@@ -940,120 +867,77 @@ export default function IECRegistration() {
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
               colorClass="orange"
             />
+
+            {isDocumentRequired("partnershipDeed") && (
+              <DocumentUploadSection
+                docType="partnershipDeed"
+                label="Partnership Deed"
+                description="Registered partnership deed"
+                required={true}
+                currentDocState={documents.partnershipDeed || { name: "", file: null, uploaded: false }}
+                onFileSelect={(file) => handleDocumentSelect("partnershipDeed", file)}
+                colorClass="purple"
+              />
+            )}
+
+            {isDocumentRequired("llpAgreement") && (
+              <DocumentUploadSection
+                docType="llpAgreement"
+                label="LLP Agreement"
+                description="Limited Liability Partnership agreement"
+                required={true}
+                currentDocState={documents.llpAgreement || { name: "", file: null, uploaded: false }}
+                onFileSelect={(file) => handleDocumentSelect("llpAgreement", file)}
+                colorClass="purple"
+              />
+            )}
+
+            {isDocumentRequired("certificateOfIncorporation") && (
+              <DocumentUploadSection
+                docType="certificateOfIncorporation"
+                label="Certificate of Incorporation"
+                description="Company incorporation certificate from ROC"
+                required={true}
+                currentDocState={documents.certificateOfIncorporation || { name: "", file: null, uploaded: false }}
+                onFileSelect={(file) => handleDocumentSelect("certificateOfIncorporation", file)}
+                colorClass="emerald"
+              />
+            )}
+
+            {isDocumentRequired("moaAoa") && (
+              <DocumentUploadSection
+                docType="moaAoa"
+                label="MOA & AOA"
+                description="Memorandum and Articles of Association documents"
+                required={true}
+                currentDocState={documents.moaAoa || { name: "", file: null, uploaded: false }}
+                onFileSelect={(file) => handleDocumentSelect("moaAoa", file)}
+                colorClass="emerald"
+              />
+            )}
           </CardContent>
         </Card>
       )}
 
-      {isDocumentRequired("partnershipDeed") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-purple-600" />
-              Partnership Deed <span className="text-red-500">*</span>
-            </CardTitle>
-            <CardDescription>Required for Partnership business type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentUploadSection
-              docType="partnershipDeed"
-              label="Partnership Deed"
-              description="Registered partnership deed document"
-              required={true}
-              currentDocState={documents.partnershipDeed || { name: "", file: null, uploaded: false }}
-              onFileSelect={(file) => handleDocumentSelect("partnershipDeed", file)}
-              colorClass="purple"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isDocumentRequired("llpAgreement") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-600" />
-              LLP Agreement <span className="text-red-500">*</span>
-            </CardTitle>
-            <CardDescription>Required for LLP business type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentUploadSection
-              docType="llpAgreement"
-              label="LLP Agreement"
-              description="Limited Liability Partnership agreement document"
-              required={true}
-              currentDocState={documents.llpAgreement || { name: "", file: null, uploaded: false }}
-              onFileSelect={(file) => handleDocumentSelect("llpAgreement", file)}
-              colorClass="indigo"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isDocumentRequired("certificateOfIncorporation") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-emerald-600" />
-              Certificate of Incorporation <span className="text-red-500">*</span>
-            </CardTitle>
-            <CardDescription>Required for Private Limited Company</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentUploadSection
-              docType="certificateOfIncorporation"
-              label="Certificate of Incorporation"
-              description="Company incorporation certificate from ROC"
-              required={true}
-              currentDocState={documents.certificateOfIncorporation || { name: "", file: null, uploaded: false }}
-              onFileSelect={(file) => handleDocumentSelect("certificateOfIncorporation", file)}
-              colorClass="emerald"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isDocumentRequired("moaAoa") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-teal-600" />
-              MOA & AOA <span className="text-red-500">*</span>
-            </CardTitle>
-            <CardDescription>Required for Private Limited Company</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentUploadSection
-              docType="moaAoa"
-              label="Memorandum & Articles of Association"
-              description="Memorandum and Articles of Association documents"
-              required={true}
-              currentDocState={documents.moaAoa || { name: "", file: null, uploaded: false }}
-              onFileSelect={(file) => handleDocumentSelect("moaAoa", file)}
-              colorClass="teal"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Bank Details (Required for IEC) */}
+      {/* Bank Details (Optional) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-indigo-600" />
-            Bank Details <span className="text-red-500">*</span>
+            <Building className="h-5 w-5 text-slate-600" />
+            Bank Details (Optional at the time of registration)
           </CardTitle>
-          <CardDescription>Bank details are mandatory for IEC registration</CardDescription>
+          <CardDescription>You can provide bank details now or add them later</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-            <h4 className="font-medium text-indigo-900">🏦 Required Bank Details:</h4>
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="font-medium text-slate-900 flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              Bank Details Include:
+            </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">
-                  Bank Account Number <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="accountNumber">Bank Account Number</Label>
                 <Input
                   id="accountNumber"
                   placeholder="Enter account number"
@@ -1063,9 +947,7 @@ export default function IECRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ifscCode">
-                  IFSC Code <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="ifscCode">IFSC Code</Label>
                 <Input
                   id="ifscCode"
                   placeholder="Enter IFSC code"
@@ -1095,23 +977,96 @@ export default function IECRegistration() {
               </div>
             </div>
 
-            <DocumentUploadSection
-              docType="cancelledCheque"
-              label="Cancelled Cheque or Bank Statement"
-              description="Upload cancelled cheque or bank statement for account verification"
-              required={true}
-              currentDocState={{
-                name: "cancelledCheque",
-                file: bankDetails.cancelledCheque,
-                uploaded: !!bankDetails.cancelledChequeUrl,
-                url: bankDetails.cancelledChequeUrl,
-                status: bankDetails.cancelledChequeStatus,
-                tempFile: bankDetails.tempCancelledCheque,
-                tempUrl: bankDetails.tempCancelledChequeUrl,
-              }}
-              onFileSelect={handleBankDocumentSelect}
-              colorClass="indigo"
-            />
+            <div className="space-y-2">
+              <Label>Cancelled Cheque, Bank Statement, or Passbook (Front Page)</Label>
+              <p className="text-sm text-gray-600 mb-2">
+                Upload a cancelled cheque, bank statement, or the front page of your passbook for account verification.
+              </p>
+              <div
+                className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-slate-400 transition-colors cursor-pointer"
+                onClick={() => document.getElementById("bankDocument")?.click()}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleBankDocumentSelect(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="bankDocument"
+                />
+                {bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="flex items-center gap-1 text-green-600 text-xs">
+                      <Check className="h-3 w-3" />
+                      <span>Document Selected</span>
+                    </div>
+                    {(bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl) && (
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const url = bankDetails.tempCancelledChequeUrl || bankDetails.cancelledChequeUrl
+                          if (url) window.open(url, "_blank")
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    )}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-slate-600 text-xs mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        document.getElementById("bankDocument")?.click()
+                      }}
+                    >
+                      <Upload className="h-3 w-3 mr-1" /> Change / Re-upload
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Upload className="h-8 w-8 text-slate-400 mx-auto" />
+                    <div className="text-sm text-gray-600">
+                      <span className="text-slate-600">Click to upload</span>
+                    </div>
+                    <p className="text-xs text-gray-400">Supported formats: .pdf, .jpg, .jpeg, .png</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* IEC Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-emerald-600" />
+            IEC Information
+          </CardTitle>
+          <CardDescription>Important information about Import Export Code</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+            <h4 className="font-medium text-emerald-900 mb-3">🌍 What is IEC?</h4>
+            <ul className="text-emerald-800 text-sm space-y-2">
+              <li>• Import Export Code is a 10-digit code issued by DGFT (Directorate General of Foreign Trade)</li>
+              <li>• Mandatory for importers and exporters in India</li>
+              <li>• Required for customs clearance, foreign exchange transactions, and international trade</li>
+              <li>• Valid for a lifetime, no renewal required</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-900 mb-3">📋 Benefits of IEC Registration:</h4>
+            <ul className="text-blue-800 text-sm space-y-2">
+              <li>• Enables international trade activities (import and export)</li>
+              <li>• Access to export incentives and schemes from DGFT</li>
+              <li>• Simplifies customs procedures and documentation</li>
+              <li>• Enhances business credibility in the global market</li>
+              <li>• No annual compliance or filing requirements</li>
+            </ul>
           </div>
         </CardContent>
       </Card>
@@ -1133,10 +1088,6 @@ export default function IECRegistration() {
               </p>
             </CardContent>
           </Card>
-        ) : registrationStatus === "approved" ? (
-          <div className="text-green-500 font-semibold">Congratulations! Your IEC registration is approved.</div>
-        ) : registrationStatus === "rejected" ? (
-          <div className="text-red-500 font-semibold">Your application was rejected. Please review and resubmit.</div>
         ) : (
           <>
             <Button variant="outline" asChild>

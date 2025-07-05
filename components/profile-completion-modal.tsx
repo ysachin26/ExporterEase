@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getDashboardData, updateProfileCompletion, uploadDocument, verifyEmail } from "@/app/actions"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProfileCompletionModalProps {
   isOpen: boolean
@@ -80,6 +81,8 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
   const panInputRef = useRef<HTMLInputElement>(null)
   const photographInputRef = useRef<HTMLInputElement>(null)
   const proofOfAddressInputRef = useRef<HTMLInputElement>(null)
+
+  const { toast } = useToast()
 
   // Define profile fields configuration
   const profileFieldsConfig = [
@@ -249,6 +252,15 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
 
   const handleFileUpload = (type: "aadharCard" | "panCard" | "photograph" | "proofOfAddress", file: File | null) => {
     if (!file) return
+
+    if (file.size > 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "❌ File Size Too Large",
+        description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
+      })
+      return
+    }
 
     // Revoke previous URL if exists for this type
     if (stagedFiles[type]?.previewUrl) {
@@ -487,7 +499,17 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                         ref={field.ref}
                         type="file"
                         accept={field.accept}
-                        onChange={(e) => handleFileUpload(field.type, e.target.files?.[0] || null)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file && file.size > 1024 * 1024) {
+                            toast({
+                              title: "File size too large.",
+                              description: "Please upload a file smaller than 1MB.",
+                            })
+                            return
+                          }
+                          handleFileUpload(field.type, file)
+                        }}
                         className="hidden"
                         disabled={uploadingStates[field.type]}
                       />

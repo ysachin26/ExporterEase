@@ -26,6 +26,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Link from "next/link"
 import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
+import { useToast } from "@/hooks/use-toast"
 
 interface DocumentUploadState {
   name: string
@@ -237,6 +238,7 @@ export default function DSCRegistration() {
   const [documents, setDocuments] = useState<Record<string, DocumentUploadState>>({})
   const [registrationStatus, setRegistrationStatus] = useState<string>("") // New state for registration status
   const router = useRouter() // Initialize useRouter
+  const { toast } = useToast()
 
   // Fetch profile data on component mount
   useEffect(() => {
@@ -385,6 +387,14 @@ export default function DSCRegistration() {
 
   const handleDocumentSelect = (docType: string, file: File | null) => {
     if (!file) return
+
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "File size too large.",
+        description: "Please upload a file smaller than 1MB.",
+      })
+      return
+    }
 
     if (documents[docType]?.tempUrl) {
       URL.revokeObjectURL(documents[docType].tempUrl!)

@@ -81,6 +81,7 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [hasMounted, setHasMounted] = useState(false)
 
   const fetchDashboardData = async () => {
     try {
@@ -89,7 +90,7 @@ export default function Dashboard() {
       setDashboardData(data)
 
       // Show profile completion modal on first load if profile is incomplete
-      if (data && data.profileCompletion < 100) {
+      if (data && data.profileCompletion < 100 && hasMounted) {
         const hasShownModal = localStorage.getItem("profileModalShown")
         if (!hasShownModal) {
           setShowProfileModal(true)
@@ -105,6 +106,7 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    setHasMounted(true)
     fetchDashboardData()
   }, [])
 
