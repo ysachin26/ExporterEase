@@ -192,6 +192,12 @@ const UserSchema: Schema = new Schema(
     panCardUrl: { type: String, default: "" },
     photographUrl: { type: String, default: "" },
     proofOfAddressUrl: { type: String, default: "" },
+    
+    // Document status fields
+    aadharCardStatus: { type: String, enum: ["pending", "uploaded", "verified", "rejected"], default: "pending" },
+    panCardStatus: { type: String, enum: ["pending", "uploaded", "verified", "rejected"], default: "pending" },
+    photographStatus: { type: String, enum: ["pending", "uploaded", "verified", "rejected"], default: "pending" },
+    proofOfAddressStatus: { type: String, enum: ["pending", "uploaded", "verified", "rejected"], default: "pending" },
     gstNumber: { type: String, default: "" },
     gstCertificate: { type: String, default: "" },
     iecNumber: { type: String, default: "" },
@@ -239,11 +245,11 @@ UserSchema.methods.calculateProfileCompletion = function(): number {
   if (this.businessName && this.businessName.trim()) completed++
   if (this.businessType) completed++
   
-  // Essential documents (4 fields)
-  if (this.aadharCardUrl) completed++
-  if (this.panCardUrl) completed++
-  if (this.photographUrl) completed++
-  if (this.proofOfAddressUrl) completed++
+  // Essential documents (4 fields) - ONLY count if status is "verified"
+  if (this.aadharCardStatus === "verified") completed++
+  if (this.panCardStatus === "verified") completed++
+  if (this.photographStatus === "verified") completed++
+  if (this.proofOfAddressStatus === "verified") completed++
 
   const percentage = Math.round((completed / total) * 100)
   

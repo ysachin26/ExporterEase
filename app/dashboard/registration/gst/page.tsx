@@ -398,6 +398,13 @@ export default function GSTRegistration() {
 
   const getRegistrationStatus = () => {
     const step = dashboardData?.registrationSteps?.find((s: any) => s.id === 2) // GST is step 2
+    if (step?.status === "rejected") {
+      toast({
+        title: "Document Rejected",
+        description: "One or more documents have been rejected. Please re-upload.",
+        variant: "destructive",
+      })
+    }
     return step?.status || "not-started"
   }
 
@@ -606,7 +613,11 @@ export default function GSTRegistration() {
       alert(result.message)
       router.push("/dashboard/progress") // Redirect to progress page
     } else {
-      alert(`Submission failed: ${result.message}`)
+      toast({
+        title: "Submission failed",
+        description: result.message,
+        variant: "destructive"
+      })
     }
   }
 

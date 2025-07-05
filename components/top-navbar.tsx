@@ -99,12 +99,16 @@ function UserProfileDisplay() {
 export function TopNavbar() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("en")
 
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
         const data = await getDashboardData()
         setNotifications(data.notifications || [])
+        // Load saved language preference
+        const savedLanguage = localStorage.getItem('preferredLanguage') || 'en'
+        setSelectedLanguage(savedLanguage)
       } catch (error) {
         console.error("Failed to fetch notifications:", error)
       } finally {
@@ -128,6 +132,18 @@ export function TopNavbar() {
   }
 
   const unreadCount = notifications.filter(notif => !notif.read).length
+  
+  const handleLanguageSelect = (languageCode: string) => {
+    setSelectedLanguage(languageCode)
+    localStorage.setItem('preferredLanguage', languageCode)
+    
+    // Trigger a page reload to apply new language
+    window.location.reload()
+  }
+  
+  const getCurrentLanguage = () => {
+    return languages.find(lang => lang.code === selectedLanguage) || languages[0]
+  }
 
   return (
     <header className="flex h-16 items-center justify-end border-b bg-white px-6">
@@ -190,14 +206,20 @@ export function TopNavbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-3">
-              <span className="text-sm">🇺🇸</span>
-              <span className="text-sm font-medium">English</span>
+              <span className="text-sm">{getCurrentLanguage().flag}</span>
+              <span className="text-sm font-medium">{getCurrentLanguage().name}</span>
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {languages.map((language) => (
-              <DropdownMenuItem key={language.code} className="flex items-center gap-3 cursor-pointer">
+              <DropdownMenuItem 
+                key={language.code} 
+                className={`flex items-center gap-3 cursor-pointer ${
+                  selectedLanguage === language.code ? 'bg-blue-50 text-blue-700' : ''
+                }`}
+                onClick={() => handleLanguageSelect(language.code)}
+              >
                 <span className="text-base">{language.flag}</span>
                 <span className="text-sm">{language.name}</span>
               </DropdownMenuItem>

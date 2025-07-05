@@ -40,6 +40,11 @@ interface ProfileData {
   proofOfAddressUrl: string
   businessType: string
   businessName: string
+  // Add status fields
+  aadharCardStatus: "pending" | "uploaded" | "verified" | "rejected"
+  panCardStatus: "pending" | "uploaded" | "verified" | "rejected"
+  photographStatus: "pending" | "uploaded" | "verified" | "rejected"
+  proofOfAddressStatus: "pending" | "uploaded" | "verified" | "rejected"
 }
 
 interface StagedFileEntry {
@@ -59,6 +64,10 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
     proofOfAddressUrl: "",
     businessType: "",
     businessName: "",
+    aadharCardStatus: "pending",
+    panCardStatus: "pending",
+    photographStatus: "pending",
+    proofOfAddressStatus: "pending",
   })
 
   const [stagedFiles, setStagedFiles] = useState<Record<string, StagedFileEntry | null>>({
@@ -176,6 +185,11 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
             proofOfAddressUrl: data.user.proofOfAddressUrl,
             businessType: data.user.businessType,
             businessName: data.user.businessName,
+            // Populate new status fields
+            aadharCardStatus: data.user.aadharCardStatus,
+            panCardStatus: data.user.panCardStatus,
+            photographStatus: data.user.photographStatus,
+            proofOfAddressStatus: data.user.proofOfAddressStatus,
           })
           // Clear any previously staged files when modal opens
           setStagedFiles({
@@ -216,8 +230,9 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
           completed++
         }
       } else if ("type" in field) {
-        // Document fields
-        if (profileData[`${field.type}Url` as keyof ProfileData]?.toString().trim() || stagedFiles[field.type]) {
+        // Document fields - NOW CHECK STATUS
+        const statusKey = `${field.type}Status` as keyof ProfileData
+        if (profileData[statusKey] === "verified") {
           completed++
         }
       }
@@ -494,7 +509,7 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                 .map((field) => (
                   <div key={field.type} className="space-y-2">
                     <Label>{field.label}</Label>
-                    <div 
+                    <div
                       className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer"
                       onClick={() => field.ref.current?.click()}
                     >
@@ -548,18 +563,58 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                           </div>
                         </div>
                       ) : profileData[`${field.type}Url` as keyof ProfileData] ? (
-                        // Already uploaded to Cloudinary
-                        <div className="flex flex-col items-center justify-center gap-2 text-green-600">
-                          <Check className="h-5 w-5" />
-                          <span className="text-sm font-medium">Uploaded</span>
-                          <Button
-                            variant="link"
-                            className="p-0 h-auto text-primary text-xs"
-                            onClick={() => window.open(profileData[`${field.type}Url` as keyof ProfileData]!, "_blank")}
-                          >
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </Button>
-                        </div>
+                        // Already uploaded to Cloudinary - now check status
+                        (() => {
+                          const docStatus = profileData[`${field.type}Status` as keyof ProfileData]
+                          let statusText = ""
+                          let statusColorClass = ""
+                          let statusIcon = null
+
+                          switch (docStatus) {
+                            case "verified":
+                              statusText = "Verified"
+                              statusColorClass = "text-green-600"
+                              statusIcon = <Check className="h-5 w-5" />
+                              break
+                            case "rejected":
+                              statusText = "Rejected"
+                              statusColorClass = "text-red-600"
+                              statusIcon = <XCircle className="h-5 w-5" />
+                              break
+                            case "uploaded":
+                            case "pending": // If URL exists but status is still pending/uploaded
+                            default:
+                              statusText = "Uploaded (Pending Review)"
+                              statusColorClass = "text-amber-600"
+                              statusIcon = <Eye className="h-5 w-5" /> // Or a clock icon
+                              break
+                          }
+
+                          return (
+                            <div className={`flex flex-col items-center justify-center gap-2 ${statusColorClass}`}>
+                              {statusIcon}
+                              <span className="text-sm font-medium">{statusText}</span>
+                              <Button
+                                variant="link"
+                                className="p-0 h-auto text-primary text-xs"
+                                onClick={() =>
+                                  window.open(profileData[`${field.type}Url` as keyof ProfileData]!, "_blank")
+                                }
+                              >
+                                <Eye className="h-3 w-3 mr-1" /> View
+                              </Button>
+                              {docStatus === "rejected" && (
+                                <Button
+                                  variant="link"
+                                  className="p-0 h-auto text-blue-600 text-xs"
+                                  onClick={() => field.ref.current?.click()}
+                                >
+                                  <Upload className="h-3 w-3 mr-1" /> Re-upload
+                                </Button>
+                              )}
+                            </div>
+                          )
+                        })()
                       ) : (
                         // No file staged or uploaded yet
                         <div className="space-y-2">

@@ -4,7 +4,6 @@ import { connectDB } from "@/lib/db"
 import User from "@/models/User"
 import Dashboard from "@/models/Dashboard"
 import PurchasedService from "@/models/PurchasedService"
-import Document, { DocumentType, DocumentStatus, DocumentCategory } from "@/models/Document"
 import bcrypt from "bcryptjs"
 import mongoose from "mongoose"
 import { v2 as cloudinary } from "cloudinary"
@@ -134,7 +133,7 @@ export async function login(prevState: any, formData: FormData) {
 
     // Update login tracking
     user.updateLastLogin()
-    user.status = user.status === 'pending_verification' ? 'active' : user.status
+    user.status = user.status === "pending_verification" ? "active" : user.status
     await user.save()
 
     console.log(`✅ User ${user.fullName} logged in successfully`)
@@ -167,9 +166,9 @@ export async function logout() {
     // 1. Clear session/JWT tokens
     // 2. Invalidate server-side sessions
     // 3. Clear any cached user data
-    
+
     console.log("🔓 User logged out successfully")
-    
+
     // For this demo, we'll just redirect to home page
     redirect("/")
   } catch (error) {
@@ -216,10 +215,12 @@ const calculateProfileCompletionPercentage = (user: any) => {
   if (user.emailVerified) completedFields++
   if (user.businessType && user.businessType.trim() !== "") completedFields++
   if (user.businessName && user.businessName.trim() !== "") completedFields++
-  if (user.aadharCardUrl && user.aadharCardUrl.trim() !== "") completedFields++
-  if (user.panCardUrl && user.panCardUrl.trim() !== "") completedFields++
-  if (user.photographUrl && user.photographUrl.trim() !== "") completedFields++
-  if (user.proofOfAddressUrl && user.proofOfAddressUrl.trim() !== "") completedFields++
+
+  // Essential documents (4 fields) - ONLY count if status is "verified"
+  if (user.aadharCardStatus === "verified") completedFields++
+  if (user.panCardStatus === "verified") completedFields++
+  if (user.photographStatus === "verified") completedFields++
+  if (user.proofOfAddressStatus === "verified") completedFields++
 
   return Math.round((completedFields / totalFields) * 100)
 }
@@ -340,6 +341,11 @@ export async function getDashboardData() {
       panCardUrl: user.panCardUrl,
       photographUrl: user.photographUrl,
       proofOfAddressUrl: user.proofOfAddressUrl,
+      // Document statuses
+      aadharCardStatus: user.aadharCardStatus || "pending",
+      panCardStatus: user.panCardStatus || "pending",
+      photographStatus: user.photographStatus || "pending",
+      proofOfAddressStatus: user.proofOfAddressStatus || "pending",
       // Include all registration document URLs from User model
       authorizationLetterUrl: user.authorizationLetterUrl || "",
       partnershipDeedUrl: user.partnershipDeedUrl || "",
@@ -444,6 +450,19 @@ function getUserDocumentFieldName(documentType: string): string | null {
   return documentFieldMap[documentType] || null
 }
 
+// Helper function to get the corresponding status field name for a document type
+function getDocumentStatusFieldName(documentType: string): string | null {
+  const statusFieldMap: Record<string, string> = {
+    // Profile documents
+    aadharCard: "aadharCardStatus",
+    panCard: "panCardStatus",
+    photograph: "photographStatus",
+    proofOfAddress: "proofOfAddressStatus",
+  }
+
+  return statusFieldMap[documentType] || null
+}
+
 // Define profile document types that should NOT be stored in dashboard.registrationSteps.documents
 const PROFILE_DOCUMENT_TYPES = ["aadharCard", "panCard", "photograph", "proofOfAddress"]
 
@@ -494,6 +513,13 @@ export async function uploadDocument(formData: FormData) {
     const userFieldName = getUserDocumentFieldName(documentType)
     if (userFieldName) {
       ;(user as any)[userFieldName] = fileUrl
+
+      // Update the corresponding status field to 'uploaded'
+      const statusFieldName = getDocumentStatusFieldName(documentType)
+      if (statusFieldName) {
+        ;(user as any)[statusFieldName] = "uploaded"
+      }
+
       await user.save()
       console.log(`✅ Document ${documentType} saved to User model field: ${userFieldName}`)
     }
@@ -805,6 +831,143 @@ export async function markNotificationAsRead(notificationId: string) {
   await dashboard.save()
 
   return { success: true, message: "Notification marked as read" }
+}
+
+// Admin function to reject user documents (profile documents)
+export async function rejectUserDocument({
+  userId,
+  documentType,
+  rejectionReason,
+}: {
+  userId: string
+  documentType: string
+  rejectionReason: string
+}) {
+  await connectDB()
+
+  const user = await User.findById(userId)
+  if (!user) return { success: false, message: "User not found" }
+
+  // Update the document status in User model
+  const statusFieldName = getDocumentStatusFieldName(documentType)
+  if (statusFieldName) {
+    ;(user as any)[statusFieldName] = "rejected"
+    await user.save()
+  }
+
+  // Add rejection notification to dashboard
+  const dashboard = await Dashboard.findOne({ userId: user._id })
+  if (dashboard) {
+    dashboard.addNotification(
+      "Document Rejected",
+      `Your ${documentType} has been rejected. Reason: ${rejectionReason}. Please re-upload the document from your profile.`,
+      "error",
+    )
+    await dashboard.save()
+  }
+
+  return { success: true, message: "Document rejected successfully" }
+}
+
+// Handle document rejection for registration services
+export async function rejectRegistrationDocument({
+  stepId,
+  documentName,
+  rejectionReason,
+}: {
+  stepId: number
+  documentName: string
+  rejectionReason: string
+}) {
+  await connectDB()
+
+  const user = await User.findOne().sort({ createdAt: -1 })
+  if (!user) return { success: false, message: "User not found" }
+
+  const dashboard = await Dashboard.findOne({ userId: user._id })
+  if (!dashboard) return { success: false, message: "Dashboard not found" }
+
+  const step = dashboard.registrationSteps.find((s: any) => s.id === stepId)
+  if (!step) return { success: false, message: "Registration step not found" }
+
+  // Update step status to rejected
+  step.status = "rejected"
+
+  // Update specific document status
+  const docEntry = step.documents.find((d: any) => d.name === documentName)
+  if (docEntry) {
+    docEntry.status = "rejected"
+  }
+
+  // Add rejection notification
+  dashboard.addNotification(
+    "Document Rejected",
+    `Your ${documentName} for ${step.name} has been rejected. Reason: ${rejectionReason}. Please re-upload the document.`,
+    "error",
+  )
+
+  await dashboard.save()
+
+  return { success: true, message: "Document rejected successfully" }
+}
+
+// Re-upload rejected document and mark step as in-progress again
+export async function reuploadRejectedDocument(formData: FormData) {
+  await connectDB()
+
+  const user = await User.findOne().sort({ createdAt: -1 })
+  if (!user) return { success: false, message: "User not found" }
+
+  const file = formData.get("file") as File
+  const documentType = formData.get("documentType") as string
+  const stepId = formData.get("stepId") ? Number.parseInt(formData.get("stepId") as string) : undefined
+
+  if (!file || !documentType || !stepId) {
+    return { success: false, message: "Missing required fields" }
+  }
+
+  try {
+    // Upload the document using existing upload function
+    const uploadResult = await uploadDocument(formData)
+
+    if (!uploadResult.success) {
+      return uploadResult
+    }
+
+    // Update dashboard step status back to in-progress
+    const dashboard = await Dashboard.findOne({ userId: user._id })
+    if (dashboard) {
+      const step = dashboard.registrationSteps.find((s: any) => s.id === stepId)
+      if (step && step.status === "rejected") {
+        step.status = "in-progress"
+
+        // Update document status
+        const docEntry = step.documents.find((d: any) => d.name === documentType)
+        if (docEntry) {
+          docEntry.status = "uploaded"
+          docEntry.uploadedAt = new Date()
+        }
+
+        // Add notification for re-upload
+        dashboard.addNotification(
+          "Document Re-uploaded",
+          `Your ${documentType} for ${step.name} has been re-uploaded successfully and is under review.`,
+          "info",
+        )
+
+        await dashboard.save()
+      }
+    }
+
+    return {
+      success: true,
+      message: "Document re-uploaded successfully",
+      fileUrl: uploadResult.fileUrl,
+    }
+  } catch (error: any) {
+    console.error("Re-upload error:", error)
+    return { success: false, message: `Re-upload failed: ${error.message}` }
+  }
 }
 
 // Email verification function
