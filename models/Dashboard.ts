@@ -89,11 +89,65 @@ DashboardSchema.pre("save", function (next) {
   next()
 })
 
+// Instance Methods
 DashboardSchema.methods.addNotification = function (title: string, message: string, type: string) {
   const newNotification = { title, message, type, read: false, createdAt: new Date() }
   this.notifications.push(newNotification)
+  
+  // Keep only the latest 50 notifications to prevent bloat
+  if (this.notifications.length > 50) {
+    this.notifications = this.notifications.slice(-50)
+  }
+  
   return this.notifications[this.notifications.length - 1]
 }
+
+DashboardSchema.methods.getUnreadNotificationsCount = function() {
+  return this.notifications.filter((notif: any) => !notif.read).length
+}
+
+DashboardSchema.methods.markAllNotificationsAsRead = function() {
+  this.notifications.forEach((notif: any) => {
+    notif.read = true
+  })
+}
+
+DashboardSchema.methods.calculateOverallProgress = function() {
+  const completedSteps = this.registrationSteps.filter((step: any) => step.status === 'completed').length
+  const totalSteps = this.registrationSteps.length
+  return totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0
+}
+
+DashboardSchema.methods.getNextPendingStep = function() {
+  return this.registrationSteps.find((step: any) => step.status === 'pending')
+}
+
+DashboardSchema.methods.getStepById = function(stepId: number) {
+  return this.registrationSteps.find((step: any) => step.id === stepId)
+}
+
+// Indexes for better performance
+DashboardSchema.index({ userId: 1 }, { unique: true })
+DashboardSchema.index({ hasStartedRegistration: 1 })
+DashboardSchema.index({ 'registrationSteps.status': 1 })
+DashboardSchema.index({ 'notifications.read': 1 })
+DashboardSchema.index({ 'notifications.createdAt': -1 })
+DashboardSchema.index({ createdAt: -1 })
+DashboardSchema.index({ updatedAt: -1 })
+
+// Compound indexes
+DashboardSchema.index({ userId: 1, hasStartedRegistration: 1 })
+DashboardSchema.index({ userId: 1, 'registrationSteps.status': 1 })
+
+// Virtual for overall progress percentage
+DashboardSchema.virtual('overallProgressPercentage').get(function() {
+  return this.calculateOverallProgress()
+})
+
+// Virtual for completion status
+DashboardSchema.virtual('isCompleted').get(function() {
+  return this.registrationSteps.every((step: any) => step.status === 'completed')
+})
 
 const Dashboard = mongoose.models.Dashboard || mongoose.model<IDashboard>("Dashboard", DashboardSchema)
 

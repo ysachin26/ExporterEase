@@ -248,7 +248,7 @@ export default function GSTRegistration() {
         // Map business type from database to form values
         let mappedBusinessType: "individual" | "partnership" | "llp" | "pvt_ltd" = "individual"
         switch (data.user.businessType) {
-          case "Propatorship":
+          case "Proprietorship":
             mappedBusinessType = "individual"
             break
           case "Partnership":

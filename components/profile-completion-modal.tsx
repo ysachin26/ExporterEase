@@ -494,7 +494,10 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                 .map((field) => (
                   <div key={field.type} className="space-y-2">
                     <Label>{field.label}</Label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                    <div 
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                      onClick={() => field.ref.current?.click()}
+                    >
                       <input
                         ref={field.ref}
                         type="file"
@@ -503,8 +506,9 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                           const file = e.target.files?.[0]
                           if (file && file.size > 1024 * 1024) {
                             toast({
-                              title: "File size too large.",
-                              description: "Please upload a file smaller than 1MB.",
+                              variant: "destructive",
+                              title: "❌ File Size Too Large",
+                              description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
                             })
                             return
                           }
@@ -561,14 +565,9 @@ export function ProfileCompletionModal({ isOpen, onClose, onUpdate }: ProfileCom
                         <div className="space-y-2">
                           <field.icon className="h-8 w-8 text-gray-400 mx-auto" />
                           <div className="text-sm text-gray-600">
-                            <Button
-                              variant="link"
-                              className="p-0 h-auto text-primary"
-                              onClick={() => field.ref.current?.click()}
-                              disabled={uploadingStates[field.type]}
-                            >
+                            <span className="text-primary">
                               {uploadingStates[field.type] ? "Uploading..." : "Click to upload"}
-                            </Button>
+                            </span>
                           </div>
                           <p className="text-xs text-gray-500">{field.uploadHint}</p>
                         </div>

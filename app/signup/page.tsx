@@ -1,6 +1,7 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,8 +12,9 @@ import { signup, generateOtp } from "@/app/actions"
 
 export default function SignupPage() {
   const [state, formAction] = useActionState(signup, null)
-  const [businessType, setBusinessType] = useState<"Propatorship" | "Partnership" | "LLP" | "PVT LTD" | "Other">(
-    "Propatorship",
+const router = useRouter()
+  const [businessType, setBusinessType] = useState<"Proprietorship" | "Partnership" | "LLP" | "PVT LTD" | "Other">(
+    "Proprietorship",
   )
   const [mobileNo, setMobileNo] = useState("")
   const [otpSent, setOtpSent] = useState(false)
@@ -29,6 +31,12 @@ export default function SignupPage() {
       setOtpSent(true)
     }
   }
+
+useEffect(() => {
+    if (state?.success) {
+      router.push("/login")
+    }
+  }, [state, router])
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
@@ -94,7 +102,7 @@ export default function SignupPage() {
                   <SelectValue placeholder="Select business type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Propatorship">Propatorship</SelectItem>
+                  <SelectItem value="Proprietorship">Proprietorship</SelectItem>
                   <SelectItem value="Partnership">Partnership</SelectItem>
                   <SelectItem value="LLP">LLP</SelectItem>
                   <SelectItem value="PVT LTD">PVT LTD</SelectItem>

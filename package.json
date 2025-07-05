@@ -6,7 +6,12 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "migrate": "npx tsx scripts/run-migration.ts",
+    "migrate:dry-run": "npx tsx scripts/run-migration.ts --dry-run",
+    "migrate:full": "npx tsx scripts/run-migration.ts --migrate-docs --optimize",
+    "migrate:cleanup": "npx tsx scripts/run-migration.ts --cleanup",
+    "db:optimize": "npx tsx scripts/run-migration.ts --optimize"
   },
   "dependencies": {
     "@hookform/resolvers": "latest",

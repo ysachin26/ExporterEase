@@ -3,9 +3,10 @@
 import { connectDB } from "@/lib/db"
 import User from "@/models/User"
 import Dashboard from "@/models/Dashboard"
-import PurchasedService from "@/models/PurchasedService" // Import the new model
+import PurchasedService from "@/models/PurchasedService"
+import Document, { DocumentType, DocumentStatus, DocumentCategory } from "@/models/Document"
 import bcrypt from "bcryptjs"
-import mongoose from "mongoose" // Import mongoose
+import mongoose from "mongoose"
 import { v2 as cloudinary } from "cloudinary"
 import { redirect } from "next/navigation"
 
@@ -41,7 +42,7 @@ export async function signup(prevState: any, formData: FormData) {
 
   const fullName = formData.get("fullName") as string
   const mobileNo = formData.get("mobileNo") as string
-  const businessType = formData.get("businessType") as "Propatorship" | "Partnership" | "LLP" | "PVT LTD" | "Other"
+  const businessType = formData.get("businessType") as "Proprietorship" | "Partnership" | "LLP" | "PVT LTD" | "Other"
   const otherBusinessType = formData.get("otherBusinessType") as string | undefined
   const businessName = formData.get("businessName") as string
   const password = formData.get("password") as string
@@ -131,6 +132,13 @@ export async function login(prevState: any, formData: FormData) {
       return { success: false, message: "Invalid mobile number or password." }
     }
 
+    // Update login tracking
+    user.updateLastLogin()
+    user.status = user.status === 'pending_verification' ? 'active' : user.status
+    await user.save()
+
+    console.log(`✅ User ${user.fullName} logged in successfully`)
+
     // In a real application, you would set up a session or JWT here.
     // For this demo, we'll just return a success message.
     return {
@@ -142,19 +150,33 @@ export async function login(prevState: any, formData: FormData) {
         fullName: user.fullName,
         mobileNo: user.mobileNo,
         businessName: user.businessName,
+        status: user.status,
+        profileCompletion: user.calculateProfileCompletion(),
       },
     }
   } catch (error: any) {
-    console.error("Login error:", error)
+    console.error("❌ Login error:", error)
     return { success: false, message: `Login failed: ${error.message}` }
   }
 }
 
 // Logout action
 export async function logout() {
-  // In a real application, you would set up a session or JWT here.
-  // For this demo, we'll just redirect to home page
-  redirect("/")
+  try {
+    // In a real application, you would:
+    // 1. Clear session/JWT tokens
+    // 2. Invalidate server-side sessions
+    // 3. Clear any cached user data
+    
+    console.log("🔓 User logged out successfully")
+    
+    // For this demo, we'll just redirect to home page
+    redirect("/")
+  } catch (error) {
+    console.error("❌ Logout error:", error)
+    // Still redirect even if there's an error
+    redirect("/")
+  }
 }
 
 // Create initial dashboard data for new user
@@ -213,7 +235,7 @@ export async function getDashboardData() {
     const newUser = new User({
       fullName: "Vinayak Maurya",
       mobileNo: "+919876543210",
-      businessType: "Propatorship",
+      businessType: "Proprietorship",
       businessName: "Maurya Exports",
       password: await bcrypt.hash("demo123", 10),
       isMobileVerified: true,

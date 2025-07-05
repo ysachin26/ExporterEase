@@ -393,7 +393,7 @@ export default function ICEGATERegistration() {
   // Map business types to document requirements
   const getBusinessTypeKey = (businessType: string) => {
     switch (businessType) {
-      case "Propatorship":
+      case "Proprietorship":
         return "individual"
       case "Partnership":
         return "partnership"
@@ -489,8 +489,9 @@ export default function ICEGATERegistration() {
 
     if (file.size > 1024 * 1024) {
       toast({
-        title: "File size too large.",
-        description: "Please upload a file smaller than 1MB.",
+        variant: "destructive",
+        title: "❌ File Size Too Large",
+        description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
       })
       return
     }
@@ -517,8 +518,9 @@ export default function ICEGATERegistration() {
 
     if (file.size > 1024 * 1024) {
       toast({
-        title: "File size too large.",
-        description: "Please upload a file smaller than 1MB.",
+        variant: "destructive",
+        title: "❌ File Size Too Large",
+        description: `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Please upload a file smaller than 1MB.`,
       })
       return
     }

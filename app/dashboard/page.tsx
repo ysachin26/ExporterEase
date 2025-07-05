@@ -22,7 +22,7 @@ interface UserData {
   id: string
   fullName: string
   businessName: string
-  businessType: "Propatorship" | "Partnership" | "LLP" | "PVT LTD" | "Other"
+  businessType: "Proprietorship" | "Partnership" | "LLP" | "PVT LTD" | "Other"
   mobileNo: string
   email: string
   emailVerified: boolean
