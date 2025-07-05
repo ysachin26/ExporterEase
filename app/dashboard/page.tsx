@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle, Clock, AlertCircle, FileText, TrendingUp, Bell, type LucideIcon } from "lucide-react"
+import { CheckCircle, Clock, AlertCircle, FileText, TrendingUp, Bell, type LucideIcon, XCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { ProfileCompletionModal } from "@/components/profile-completion-modal"
 import { getDashboardData, markNotificationAsRead, updateRegistrationStep } from "@/app/actions"
+import Link from "next/link"
 
 // Map string icon names to Lucide React components
 const iconMap: { [key: string]: LucideIcon } = {
@@ -16,6 +17,7 @@ const iconMap: { [key: string]: LucideIcon } = {
   AlertCircle,
   FileText,
   TrendingUp,
+  XCircle, // Add XCircle for rejected status
 }
 
 interface UserData {
@@ -110,11 +112,30 @@ export default function Dashboard() {
     fetchDashboardData()
   }, [])
 
+  const getRegistrationPagePath = (stepId: number) => {
+    switch (stepId) {
+      case 2:
+        return "/dashboard/registration/gst"
+      case 3:
+        return "/dashboard/registration/iec"
+      case 4:
+        return "/dashboard/registration/dsc"
+      case 5:
+        return "/dashboard/registration/icegate"
+      case 6:
+        return "/dashboard/registration/adcode"
+      default:
+        return "/dashboard/registration" // Fallback or general registration page
+    }
+  }
+
   const handleStepAction = async (stepId: number, currentStatus: string) => {
     if (currentStatus === "pending") {
       await updateRegistrationStep(stepId, "in-progress")
       fetchDashboardData() // Refresh data
     }
+    // For rejected status, we will redirect to the specific registration page
+    // The Link component below handles this directly.
   }
 
   const handleNotificationClick = async (notificationId: string) => {
@@ -128,6 +149,8 @@ export default function Dashboard() {
         return "bg-green-100 text-green-600 border-green-200"
       case "in-progress":
         return "bg-teal-100 text-teal-600 border-teal-200"
+      case "rejected": // New color for rejected status
+        return "bg-red-100 text-red-600 border-red-200"
       default:
         return "bg-gray-100 text-gray-400 border-gray-200"
     }
@@ -329,20 +352,40 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
                   {registrationSteps.map((step) => {
                     const Icon = iconMap[step.icon] || AlertCircle
+                    const isRejected = step.status === "rejected"
+                    const isCompleted = step.status === "completed"
+                    const isPending = step.status === "pending"
+
                     return (
                       <div key={step.id} className="text-center">
-                        <button
-                          onClick={() => handleStepAction(step.id, step.status)}
-                          className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${getStatusColor(step.status)} hover:opacity-80`}
-                        >
-                          <Icon className="h-6 w-6" />
-                        </button>
+                        <Link href={getRegistrationPagePath(step.id)}>
+                          <button
+                            onClick={() => handleStepAction(step.id, step.status)}
+                            className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${getStatusColor(step.status)} hover:opacity-80`}
+                          >
+                            <Icon className="h-6 w-6" />
+                          </button>
+                        </Link>
                         <div className="text-xs font-medium text-gray-900">{step.name}</div>
                         <div className="text-xs text-gray-500 capitalize">{step.status.replace("-", " ")}</div>
-                        {step.completedAt && (
+                        {step.completedAt && isCompleted && (
                           <div className="text-xs text-green-600 mt-1">
                             {new Date(step.completedAt).toLocaleDateString()}
                           </div>
+                        )}
+                        {isRejected && (
+                          <Link href={getRegistrationPagePath(step.id)}>
+                            <Button variant="link" size="sm" className="text-red-600 text-xs h-auto p-0 mt-1">
+                              Review & Re-upload
+                            </Button>
+                          </Link>
+                        )}
+                        {isPending && (
+                          <Link href={getRegistrationPagePath(step.id)}>
+                            <Button variant="link" size="sm" className="text-teal-600 text-xs h-auto p-0 mt-1">
+                              Start / Continue
+                            </Button>
+                          </Link>
                         )}
                       </div>
                     )

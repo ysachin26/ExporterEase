@@ -114,6 +114,9 @@ interface StagedFileEntry {
 }
 
 export default function GSTRegistration() {
+  // Add a new state variable to track if the rejected toast has been shown
+  const [hasShownRejectedToast, setHasShownRejectedToast] = useState(false)
+
   const [premiseType, setPremiseType] = useState<"rented" | "owned" | "other" | "">("")
   const [otherPremiseDescription, setOtherPremiseDescription] = useState("")
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -396,17 +399,27 @@ export default function GSTRegistration() {
     }
   }, [stagedFiles])
 
+  // Modify getRegistrationStatus to only return the status, without calling toast
   const getRegistrationStatus = () => {
     const step = dashboardData?.registrationSteps?.find((s: any) => s.id === 2) // GST is step 2
-    if (step?.status === "rejected") {
+    return step?.status || "not-started"
+  }
+
+  // Use useEffect to trigger the toast when the status changes to "rejected"
+  useEffect(() => {
+    const currentStatus = getRegistrationStatus()
+    if (currentStatus === "rejected" && !hasShownRejectedToast) {
       toast({
         title: "Document Rejected",
         description: "One or more documents have been rejected. Please re-upload.",
         variant: "destructive",
       })
+      setHasShownRejectedToast(true) // Mark that the toast has been shown
+    } else if (currentStatus !== "rejected" && hasShownRejectedToast) {
+      // Reset if status changes from rejected (e.g., user re-uploads and it goes to pending)
+      setHasShownRejectedToast(false)
     }
-    return step?.status || "not-started"
-  }
+  }, [dashboardData, hasShownRejectedToast, toast]) // Depend on dashboardData and hasShownRejectedToast
 
   const calculateProgress = () => {
     let completed = 0
@@ -616,7 +629,7 @@ export default function GSTRegistration() {
       toast({
         title: "Submission failed",
         description: result.message,
-        variant: "destructive"
+        variant: "destructive",
       })
     }
   }

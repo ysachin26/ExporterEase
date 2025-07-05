@@ -837,11 +837,9 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function rejectUserDocument({
   userId,
   documentType,
-  rejectionReason,
 }: {
   userId: string
   documentType: string
-  rejectionReason: string
 }) {
   await connectDB()
 
@@ -860,7 +858,7 @@ export async function rejectUserDocument({
   if (dashboard) {
     dashboard.addNotification(
       "Document Rejected",
-      `Your ${documentType} has been rejected. Reason: ${rejectionReason}. Please re-upload the document from your profile.`,
+      `Your ${documentType} has been rejected. Please re-upload the document from your profile.`,
       "error",
     )
     await dashboard.save()
@@ -873,11 +871,9 @@ export async function rejectUserDocument({
 export async function rejectRegistrationDocument({
   stepId,
   documentName,
-  rejectionReason,
 }: {
   stepId: number
   documentName: string
-  rejectionReason: string
 }) {
   await connectDB()
 
@@ -892,7 +888,7 @@ export async function rejectRegistrationDocument({
 
   // Update step status to rejected
   step.status = "rejected"
-
+  
   // Update specific document status
   const docEntry = step.documents.find((d: any) => d.name === documentName)
   if (docEntry) {
@@ -902,8 +898,8 @@ export async function rejectRegistrationDocument({
   // Add rejection notification
   dashboard.addNotification(
     "Document Rejected",
-    `Your ${documentName} for ${step.name} has been rejected. Reason: ${rejectionReason}. Please re-upload the document.`,
-    "error",
+    `Your ${documentName} for ${step.name} has been rejected. Please re-upload the document.`,
+    "error"
   )
 
   await dashboard.save()
