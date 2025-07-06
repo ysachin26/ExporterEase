@@ -246,6 +246,13 @@ export async function getDashboardData() {
       panCardUrl: "",
       photographUrl: "",
       proofOfAddressUrl: "",
+      // Add some test registration numbers and certificates
+      gstNumber: "27AABCD1234E1Z5",
+      gstCertificate: "https://example.com/gst-cert.pdf",
+      iecNumber: "AABCD1234E",
+      iecCertificate: "https://example.com/iec-cert.pdf",
+      dscNumber: "DSC123456789",
+      adcodeNumber: "AD1234567890",
     })
     await newUser.save()
     user = newUser.toObject() as any
@@ -356,6 +363,14 @@ export async function getDashboardData() {
       iecCertificate: user.iecCertificate || "",
       dscCertificate: user.dscCertificate || "",
       gstCertificate: user.gstCertificate || "",
+      icegateCertificate: user.icegateCertificate || "",
+      adcodeCertificate: user.adcodeCertificate || "",
+      // Registration numbers
+      gstNumber: user.gstNumber || "",
+      iecNumber: user.iecNumber || "",
+      dscNumber: user.dscNumber || "",
+      icegateNumber: user.icegateNumber || "",
+      adcodeNumber: user.adcodeNumber || "",
       rentAgreementUrl: user.rentAgreementUrl || "",
       electricityBillUrl: user.electricityBillUrl || "",
       nocUrl: user.nocUrl || "",
@@ -1157,5 +1172,46 @@ export async function submitRegistrationApplication({
   } catch (error: any) {
     console.error(`Error submitting ${registrationType} application:`, error)
     return { success: false, message: `Application submission failed: ${error.message}` }
+  }
+}
+
+// NEW SERVER ACTION: Delete user account and all related data
+export async function deleteUserAccount() {
+  await connectDB()
+
+  try {
+    // Get the latest user (demo purposes - in real app you'd get from session)
+    const user = await User.findOne().sort({ createdAt: -1 })
+    if (!user) {
+      return { success: false, message: "User not found" }
+    }
+
+    const userId = user._id
+    console.log(`🗑️ Starting account deletion for user: ${user.fullName} (${userId})`)
+
+    // 1. Delete from PurchasedService collection
+    const deletedServices = await PurchasedService.deleteMany({ userId })
+    console.log(`✅ Deleted ${deletedServices.deletedCount} purchased services`)
+
+    // 2. Delete from Dashboard collection
+    const deletedDashboards = await Dashboard.deleteMany({ userId })
+    console.log(`✅ Deleted ${deletedDashboards.deletedCount} dashboard records`)
+
+    // 3. Delete the user from User collection
+    const deletedUser = await User.deleteOne({ _id: userId })
+    console.log(`✅ Deleted user record: ${deletedUser.deletedCount} records deleted`)
+
+    console.log(`🎯 Account deletion completed successfully for user: ${user.fullName}`)
+    
+    return { 
+      success: true, 
+      message: "Account and all associated data have been permanently deleted." 
+    }
+  } catch (error: any) {
+    console.error("❌ Error deleting user account:", error)
+    return { 
+      success: false, 
+      message: `Failed to delete account: ${error.message}` 
+    }
   }
 }

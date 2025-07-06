@@ -201,10 +201,9 @@ export default function ProgressPage() {
       </Card>
 
       <Tabs defaultValue="journey" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="journey">Registration Journey</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications ({notifications.filter((n) => !n.read).length})</TabsTrigger>
           <TabsTrigger value="next-steps">Next Steps</TabsTrigger>
         </TabsList>
         <TabsContent value="journey" className="mt-6">
@@ -348,64 +347,6 @@ export default function ProgressPage() {
                   <p className="text-gray-500 dark:text-gray-400">No activity yet.</p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="notifications" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notifications</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {notifications.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400">No notifications yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {notifications
-                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                    .map((notification) => {
-                      const NotificationIcon =
-                        iconMap[
-                          notification.type === "success"
-                            ? "CheckCircle"
-                            : notification.type === "error"
-                              ? "AlertCircle"
-                              : "Bell"
-                        ] || Bell
-                      return (
-                        <div
-                          key={notification.id}
-                          className={cn(
-                            "flex items-start p-4 rounded-lg border",
-                            !notification.read
-                              ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-700"
-                              : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700",
-                          )}
-                        >
-                          <div className="mr-3">
-                            <NotificationIcon
-                              className={cn(
-                                "h-5 w-5",
-                                notification.type === "success" && "text-green-500",
-                                notification.type === "warning" && "text-yellow-500",
-                                notification.type === "error" && "text-red-500",
-                                notification.type === "info" && "text-blue-500",
-                              )}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold">{notification.title}</h3>
-                            <p className="text-sm text-gray-700 dark:text-gray-300">{notification.message}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {format(new Date(notification.createdAt), "PPP p")}
-                            </p>
-                          </div>
-                          {/* Add a button to mark as read if needed */}
-                        </div>
-                      )
-                    })}
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>

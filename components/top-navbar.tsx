@@ -166,7 +166,9 @@ export function TopNavbar() {
             ) : notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">No notifications</div>
             ) : (
-              notifications.map((notification) => (
+              notifications
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
                   className={`p-3 cursor-pointer border-b ${
