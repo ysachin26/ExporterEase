@@ -67,7 +67,7 @@ export default function HeroContentSection() {
           <div className="relative animate-fadeInRight">
             <div className="relative">
               <Image
-                src="/images/modern-farming.png"
+                src="/modern-farming.png"
                 alt="Digital farming dashboard"
                 width={600}
                 height={500}

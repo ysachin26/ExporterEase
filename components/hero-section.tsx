@@ -8,10 +8,10 @@ export default function HeroSection() {
       {/* Full Screen Background Video */}
       <div className="absolute inset-0 w-full h-full">
         <video className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline preload="auto">
-          <source src="/videos/haifam-video.webm" type="video/webm" />
+          <source src="/haifam-video.mp4" type="video/webm" />
           {/* Fallback background image if video fails to load */}
           <Image
-            src="/images/hero-farmer.png"
+            src="/hero-farmer.png"
             alt="Modern farming with technology"
             fill
             className="object-cover"

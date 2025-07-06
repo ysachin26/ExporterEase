@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, submitRegistrationApplication } from "@/app/actions"
+import { getDashboardData, submitRegistrationApplication, resubmitRegistrationApplication } from "@/app/actions"
 import { useRouter } from "next/navigation" // Import useRouter for navigation
 import { useToast } from "@/hooks/use-toast"
 
@@ -610,15 +610,29 @@ export default function GSTRegistration() {
       filesToUpload.push({ type: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
-    const result = await submitRegistrationApplication({
-      stepId: 2, // GST step ID
-      details: detailsToSave,
-      filesToUpload: filesToUpload.map((f) => ({ docType: f.type, file: f.file })), // Map to expected format
-      userId: profileData.id,
-      dashboardId: profileData.dashboardId,
-      registrationType: "GST Registration",
-      registrationName: profileData.businessName || profileData.fullName,
-    })
+    // Check if this is a re-submission (registration status is rejected)
+    const currentStatus = getRegistrationStatus()
+    const isResubmission = currentStatus === "rejected"
+
+    const result = isResubmission
+      ? await resubmitRegistrationApplication({
+          stepId: 2, // GST step ID
+          details: detailsToSave,
+          filesToUpload: filesToUpload.map((f) => ({ docType: f.type, file: f.file })), // Map to expected format
+          userId: profileData.id,
+          dashboardId: profileData.dashboardId,
+          registrationType: "GST Registration",
+          registrationName: profileData.businessName || profileData.fullName,
+        })
+      : await submitRegistrationApplication({
+          stepId: 2, // GST step ID
+          details: detailsToSave,
+          filesToUpload: filesToUpload.map((f) => ({ docType: f.type, file: f.file })), // Map to expected format
+          userId: profileData.id,
+          dashboardId: profileData.dashboardId,
+          registrationType: "GST Registration",
+          registrationName: profileData.businessName || profileData.fullName,
+        })
 
     setIsSaving(false)
 
@@ -683,6 +697,7 @@ export default function GSTRegistration() {
   ) => {
     const stagedFile = stagedFiles[docKey]
     const isUploading = uploadingStates[docKey]
+    const registrationStatus = getRegistrationStatus()
 
     const handleContainerClick = () => {
       inputRef.current?.click()
@@ -779,7 +794,8 @@ export default function GSTRegistration() {
                   <Eye className="h-3 w-3 mr-1" /> View
                 </Button>
               )}
-              {currentStatus === "rejected" && (
+              {/* Show re-upload button when registration is rejected OR when individual document is rejected */}
+              {(registrationStatus === "rejected" || currentStatus === "rejected") && (
                 <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
                   <Upload className="h-3 w-3 mr-1" /> Re-upload
                 </Button>
@@ -827,6 +843,7 @@ export default function GSTRegistration() {
     colorClass,
   }) => {
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const registrationStatus = getRegistrationStatus()
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] || null
@@ -919,12 +936,12 @@ export default function GSTRegistration() {
                   <Eye className="h-3 w-3 mr-1" /> View
                 </Button>
               )}
-              {currentDocState.status === "rejected" && (
+              {/* Show re-upload button when registration is rejected OR when individual document is rejected */}
+              {(registrationStatus === "rejected" || currentDocState.status === "rejected") && (
                 <Button variant="link" className="p-0 h-auto text-blue-600 text-xs mt-1" onClick={handleButtonClick}>
                   <Upload className="h-3 w-3 mr-1" /> Re-upload
                 </Button>
               )}
-              {/* Removed the "Replace" button for pre-fetched/shared documents */}
             </div>
           ) : (
             <div className="space-y-2">
@@ -1502,7 +1519,8 @@ export default function GSTRegistration() {
                         <Eye className="h-3 w-3 mr-1" /> View
                       </Button>
                     )}
-                    {bankDetails.cancelledChequeStatus === "rejected" && (
+                    {/* Show re-upload button when registration is rejected OR when individual document is rejected */}
+                    {(getRegistrationStatus() === "rejected" || bankDetails.cancelledChequeStatus === "rejected") && (
                       <Button
                         variant="link"
                         className="p-0 h-auto text-blue-600 text-xs mt-1"

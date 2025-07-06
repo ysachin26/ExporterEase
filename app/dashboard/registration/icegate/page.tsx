@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
+import { getDashboardData, submitRegistrationApplication, resubmitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication and resubmitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
 import { useToast } from "@/hooks/use-toast"
 
@@ -95,6 +95,7 @@ const DocumentUploadSection = ({
   currentDocState,
   onFileSelect,
   colorClass = "purple",
+  registrationStatus, // Add this prop
 }: {
   docType: string
   label: string
@@ -103,6 +104,7 @@ const DocumentUploadSection = ({
   currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  registrationStatus?: string // Add this prop type
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -188,14 +190,22 @@ const DocumentUploadSection = ({
                 <Eye className="h-3 w-3 mr-1" /> View
               </Button>
             )}
-            {(currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
+            {(registrationStatus === "pending" ||
+              registrationStatus === "rejected" ||
+              currentDocState.status === "rejected" ||
+              hasTempFile ||
+              !currentDocState.url) && (
               <Button
                 variant="link"
                 className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
                 onClick={handleButtonClick}
               >
-                <Upload className="h-3 w-3 mr-1" />{" "}
-                {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+                <Upload className="h-3 w-3 mr-1" />
+                {registrationStatus === "pending" ||
+                registrationStatus === "rejected" ||
+                currentDocState.status === "rejected"
+                  ? "Re-upload"
+                  : "Change / Re-upload"}
               </Button>
             )}
           </div>
@@ -572,15 +582,29 @@ export default function ICEGATERegistration() {
       filesToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
-    const result = await submitRegistrationApplication({
-      stepId: 5, // ICEGATE step ID
-      details: detailsToSave,
-      filesToUpload: filesToUpload,
-      userId: profileData.id,
-      dashboardId: profileData.dashboardId,
-      registrationType: "ICEGATE Registration",
-      registrationName: profileData.businessName || profileData.fullName,
-    })
+    // Check if this is a re-submission (current status is rejected)
+    const currentRegistrationStatus = profileData.registrationSteps?.find((step) => step.stepId === 5)?.status
+    const isResubmission = currentRegistrationStatus === "rejected"
+
+    const result = isResubmission
+      ? await resubmitRegistrationApplication({
+          stepId: 5, // ICEGATE step ID
+          details: detailsToSave,
+          filesToUpload: filesToUpload,
+          userId: profileData.id,
+          dashboardId: profileData.dashboardId,
+          registrationType: "ICEGATE Registration",
+          registrationName: profileData.businessName || profileData.fullName,
+        })
+      : await submitRegistrationApplication({
+          stepId: 5, // ICEGATE step ID
+          details: detailsToSave,
+          filesToUpload: filesToUpload,
+          userId: profileData.id,
+          dashboardId: profileData.dashboardId,
+          registrationType: "ICEGATE Registration",
+          registrationName: profileData.businessName || profileData.fullName,
+        })
 
     if (result.success) {
       alert(result.message)
@@ -834,6 +858,7 @@ export default function ICEGATERegistration() {
             currentDocState={documents.iecCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("iecCertificate", file)}
             colorClass="purple"
+            registrationStatus={registrationStatus}
           />
 
           <div className="space-y-2">
@@ -858,6 +883,7 @@ export default function ICEGATERegistration() {
             currentDocState={documents.gstCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("gstCertificate", file)}
             colorClass="teal"
+            registrationStatus={registrationStatus}
           />
 
           <div className="space-y-2">
@@ -881,6 +907,7 @@ export default function ICEGATERegistration() {
             currentDocState={documents.dscCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("dscCertificate", file)}
             colorClass="indigo"
+            registrationStatus={registrationStatus}
           />
 
           <DocumentUploadSection
@@ -891,6 +918,7 @@ export default function ICEGATERegistration() {
             currentDocState={documents.bankDocument || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("bankDocument", file)}
             colorClass="emerald"
+            registrationStatus={registrationStatus}
           />
         </CardContent>
       </Card>
@@ -914,6 +942,7 @@ export default function ICEGATERegistration() {
               currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
               colorClass="orange"
+              registrationStatus={registrationStatus}
             />
           </CardContent>
         </Card>

@@ -1000,6 +1000,86 @@ export async function verifyEmail(email: string) {
   }
 }
 
+// NEW SERVER ACTION: Re-submit registration application after rejection
+export async function resubmitRegistrationApplication({
+  stepId,
+  details,
+  filesToUpload,
+  userId,
+  dashboardId,
+  registrationType,
+  registrationName,
+}: {
+  stepId: number
+  details: Record<string, any>
+  filesToUpload: { docType: string; file: File }[]
+  userId: string
+  dashboardId: string
+  registrationType: string
+  registrationName: string
+}) {
+  await connectDB()
+
+  try {
+    // 1. Update registration details (text inputs)
+    const updateDetailsResult = await updateRegistrationDetails(stepId, details)
+    if (!updateDetailsResult.success) {
+      return { success: false, message: `Failed to save details: ${updateDetailsResult.message}` }
+    }
+
+    // 2. Upload documents
+    let allUploadsSuccessful = true
+    for (const docInfo of filesToUpload) {
+      const formData = new FormData()
+      formData.append("file", docInfo.file)
+      formData.append("documentType", docInfo.docType)
+      formData.append("stepId", stepId.toString()) // Pass stepId to uploadDocument
+
+      try {
+        const result = await uploadDocument(formData)
+        if (!result.success) {
+          allUploadsSuccessful = false
+          console.error(`Upload failed for ${docInfo.docType}:`, result.message)
+          // Continue processing other documents even if one fails
+        }
+      } catch (error) {
+        allUploadsSuccessful = false
+        console.error(`Upload error for ${docInfo.docType}:`, error)
+        // Continue processing other documents even if one fails
+      }
+    }
+
+    if (!allUploadsSuccessful) {
+      return { success: false, message: "Some documents failed to upload. Please check and re-upload if necessary." }
+    }
+
+    // 3. Mark the registration step as "in-progress" again (for re-submission)
+    const updateStepResult = await updateRegistrationStep(stepId, "in-progress")
+    if (!updateStepResult.success) {
+      return { success: false, message: `Failed to update step status: ${updateStepResult.message}` }
+    }
+
+    // 4. Add a notification about re-submission
+    const user = await User.findById(userId)
+    if (user) {
+      const dashboard = await Dashboard.findOne({ userId: user._id })
+      if (dashboard) {
+        dashboard.addNotification(
+          "Application Re-submitted",
+          `Your ${registrationType} application has been re-submitted after addressing the rejection issues. It is now under review again.`,
+          "info"
+        )
+        await dashboard.save()
+      }
+    }
+
+    return { success: true, message: `${registrationType} application re-submitted successfully!` }
+  } catch (error: any) {
+    console.error(`Error re-submitting ${registrationType} application:`, error)
+    return { success: false, message: `Application re-submission failed: ${error.message}` }
+  }
+}
+
 // NEW SERVER ACTION: Centralized function to submit registration applications
 export async function submitRegistrationApplication({
   stepId,

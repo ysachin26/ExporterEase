@@ -26,11 +26,6 @@ import {
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { format } from "date-fns"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
-import { reuploadRejectedDocument } from "@/app/actions"
 
 // Map icon names to Lucide React components
 const iconMap: { [key: string]: React.ElementType } = {
@@ -109,11 +104,6 @@ export default function ProgressPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false)
-  const [selectedStep, setSelectedStep] = useState<RegistrationStep | null>(null)
-  const [uploading, setUploading] = useState(false)
-  
-  const { toast } = useToast()
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -234,24 +224,22 @@ export default function ProgressPage() {
                   return (
                     <div key={step.id}>
                       {isRejected ? (
-                        <div
-                          className={cn(
-                            "flex flex-col items-center p-4 rounded-lg border transition-all duration-200 cursor-pointer",
-                            "border-red-500 bg-red-50 dark:bg-red-950 dark:border-red-700"
-                          )}
-                          onClick={() => {
-                            setSelectedStep(step)
-                            setReuploadDialogOpen(true)
-                          }}
-                        >
-                          <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-red-100 text-red-600 dark:bg-red-800 dark:text-red-300">
-                            <IconComponent className="w-6 h-6" />
+                        <Link href={stepRoutes[step.name] || "#"}>
+                          <div
+                            className={cn(
+                              "flex flex-col items-center p-4 rounded-lg border transition-all duration-200 cursor-pointer",
+                              "border-red-500 bg-red-50 dark:bg-red-950 dark:border-red-700"
+                            )}
+                          >
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-red-100 text-red-600 dark:bg-red-800 dark:text-red-300">
+                              <IconComponent className="w-6 h-6" />
+                            </div>
+                            <p className="font-medium text-center">{step.name}</p>
+                            <p className="text-sm text-red-600 dark:text-red-300">
+                              Rejected - Click to re-upload
+                            </p>
                           </div>
-                          <p className="font-medium text-center">{step.name}</p>
-                          <p className="text-sm text-red-600 dark:text-red-300">
-                            Rejected - Click to re-upload
-                          </p>
-                        </div>
+                        </Link>
                       ) : (
                         <Link href={stepRoutes[step.name] || "#"}>
                           <div
@@ -463,89 +451,6 @@ export default function ProgressPage() {
           </Card>
         </TabsContent>
       </Tabs>
-      
-      {/* Re-upload Dialog */}
-      <Dialog open={reuploadDialogOpen} onOpenChange={setReuploadDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Re-upload Documents</DialogTitle>
-            <DialogDescription>
-              {selectedStep?.name} was rejected. Please re-upload the required documents.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="file" className="text-right">
-                Document
-              </Label>
-              <Input
-                id="file"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="col-span-3"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  if (file && selectedStep) {
-                    setUploading(true)
-                    try {
-                      const formData = new FormData()
-                      formData.append("file", file)
-                      formData.append("documentType", "rejectedDocument")
-                      formData.append("stepId", selectedStep.id.toString())
-                      
-                      const result = await reuploadRejectedDocument(formData)
-                      
-                      if (result.success) {
-                        toast({
-                          title: "Upload Successful",
-                          description: "Document re-uploaded successfully",
-                        })
-                        
-                        // Refresh dashboard data
-                        const updatedData = await getDashboardData()
-                        if (updatedData) {
-                          setDashboardData(updatedData as DashboardData)
-                        }
-                        
-                        setReuploadDialogOpen(false)
-                      } else {
-                        toast({
-                          title: "Upload Failed",
-                          description: result.message,
-                          variant: "destructive"
-                        })
-                      }
-                    } catch (error) {
-                      toast({
-                        title: "Upload Error",
-                        description: "An error occurred during upload",
-                        variant: "destructive"
-                      })
-                    } finally {
-                      setUploading(false)
-                    }
-                  }
-                }}
-                disabled={uploading}
-              />
-            </div>
-            {uploading && (
-              <div className="text-center text-sm text-gray-500">
-                Uploading document...
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setReuploadDialogOpen(false)}
-              disabled={uploading}
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Link from "next/link"
-import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
+import { getDashboardData, submitRegistrationApplication, resubmitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
 import { useToast } from "@/hooks/use-toast"
 
@@ -36,6 +36,7 @@ interface DocumentUploadState {
   status?: "pending" | "uploaded" | "verified" | "rejected"
   tempFile?: File | null
   tempUrl?: string
+  
 }
 
 interface ProfileData {
@@ -82,6 +83,7 @@ const DocumentUploadSection = ({
   currentDocState,
   onFileSelect,
   colorClass = "purple",
+  registrationStatus, // Add this prop
 }: {
   docType: string
   label: string
@@ -90,6 +92,7 @@ const DocumentUploadSection = ({
   currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  registrationStatus?: string // Add this prop type
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -175,14 +178,14 @@ const DocumentUploadSection = ({
                 <Eye className="h-3 w-3 mr-1" /> View
               </Button>
             )}
-            {(currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
+            {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
               <Button
                 variant="link"
                 className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
                 onClick={handleButtonClick}
               >
-                <Upload className="h-3 w-3 mr-1" />{" "}
-                {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+                <Upload className="h-3 w-3 mr-1" /> 
+                {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected") ? "Re-upload" : "Change / Re-upload"}
               </Button>
             )}
           </div>
@@ -437,15 +440,28 @@ export default function DSCRegistration() {
       }
     }
 
-    const result = await submitRegistrationApplication({
-      stepId: 4, // DSC step ID
-      details: detailsToSave,
-      filesToUpload: documentsToUpload,
-      userId: profileData.id,
-      dashboardId: profileData.dashboardId,
-      registrationType: "DSC Registration",
-      registrationName: profileData.businessName || profileData.fullName,
-    })
+    // Check if this is a re-submission (registration status is rejected)
+    const isResubmission = registrationStatus === "rejected"
+
+    const result = isResubmission ?
+      await resubmitRegistrationApplication({
+        stepId: 4, // DSC step ID
+        details: detailsToSave,
+        filesToUpload: documentsToUpload,
+        userId: profileData.id,
+        dashboardId: profileData.dashboardId,
+        registrationType: "DSC Registration",
+        registrationName: profileData.businessName || profileData.fullName,
+      }) :
+      await submitRegistrationApplication({
+        stepId: 4, // DSC step ID
+        details: detailsToSave,
+        filesToUpload: documentsToUpload,
+        userId: profileData.id,
+        dashboardId: profileData.dashboardId,
+        registrationType: "DSC Registration",
+        registrationName: profileData.businessName || profileData.fullName,
+      })
 
     if (result.success) {
       alert(result.message)
@@ -760,6 +776,7 @@ export default function DSCRegistration() {
               currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
               colorClass="orange"
+               registrationStatus={registrationStatus}
             />
           </CardContent>
         </Card>

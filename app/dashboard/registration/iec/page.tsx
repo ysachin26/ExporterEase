@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { getDashboardData, submitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
+import { getDashboardData, submitRegistrationApplication, resubmitRegistrationApplication } from "@/app/actions" // Import submitRegistrationApplication
 import { useRouter } from "next/navigation" // Import useRouter
 import { useToast } from "@/hooks/use-toast"
 
@@ -93,6 +93,7 @@ const DocumentUploadSection = ({
   currentDocState,
   onFileSelect,
   colorClass = "purple",
+    registrationStatus, // Add this prop
 }: {
   docType: string
   label: string
@@ -101,6 +102,7 @@ const DocumentUploadSection = ({
   currentDocState: DocumentUploadState
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  registrationStatus?: string // Add this prop type
 }) => {
   const fileInputId = docType
   const displayUrl = currentDocState.tempUrl || currentDocState.url
@@ -186,14 +188,14 @@ const DocumentUploadSection = ({
                 <Eye className="h-3 w-3 mr-1" /> View
               </Button>
             )}
-            {(currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
+            {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
               <Button
                 variant="link"
                 className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
                 onClick={handleButtonClick}
               >
-                <Upload className="h-3 w-3 mr-1" />{" "}
-                {currentDocState.status === "rejected" ? "Re-upload" : "Change / Re-upload"}
+                <Upload className="h-3 w-3 mr-1" /> 
+                {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected") ? "Re-upload" : "Change / Re-upload"}
               </Button>
             )}
           </div>
@@ -581,15 +583,28 @@ export default function IECRegistration() {
       filesToUpload.push({ docType: "cancelledCheque", file: bankDetails.tempCancelledCheque })
     }
 
-    const result = await submitRegistrationApplication({
-      stepId: 3, // IEC step ID
-      details: detailsToSave,
-      filesToUpload: filesToUpload,
-      userId: profileData.id,
-      dashboardId: profileData.dashboardId,
-      registrationType: "IEC Registration",
-      registrationName: profileData.businessName || profileData.fullName,
-    })
+    // Check if this is a re-submission (registration status is rejected)
+    const isResubmission = registrationStatus === "rejected"
+
+    const result = isResubmission ?
+      await resubmitRegistrationApplication({
+        stepId: 3, // IEC step ID
+        details: detailsToSave,
+        filesToUpload: filesToUpload,
+        userId: profileData.id,
+        dashboardId: profileData.dashboardId,
+        registrationType: "IEC Registration",
+        registrationName: profileData.businessName || profileData.fullName,
+      }) :
+      await submitRegistrationApplication({
+        stepId: 3, // IEC step ID
+        details: detailsToSave,
+        filesToUpload: filesToUpload,
+        userId: profileData.id,
+        dashboardId: profileData.dashboardId,
+        registrationType: "IEC Registration",
+        registrationName: profileData.businessName || profileData.fullName,
+      })
 
     if (result.success) {
       alert(result.message)
@@ -868,6 +883,7 @@ export default function IECRegistration() {
               currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
               colorClass="orange"
+               registrationStatus={registrationStatus}
             />
 
             {isDocumentRequired("partnershipDeed") && (
@@ -879,6 +895,7 @@ export default function IECRegistration() {
                 currentDocState={documents.partnershipDeed || { name: "", file: null, uploaded: false }}
                 onFileSelect={(file) => handleDocumentSelect("partnershipDeed", file)}
                 colorClass="purple"
+                 registrationStatus={registrationStatus}
               />
             )}
 
@@ -891,6 +908,7 @@ export default function IECRegistration() {
                 currentDocState={documents.llpAgreement || { name: "", file: null, uploaded: false }}
                 onFileSelect={(file) => handleDocumentSelect("llpAgreement", file)}
                 colorClass="purple"
+                 registrationStatus={registrationStatus}
               />
             )}
 
@@ -903,6 +921,7 @@ export default function IECRegistration() {
                 currentDocState={documents.certificateOfIncorporation || { name: "", file: null, uploaded: false }}
                 onFileSelect={(file) => handleDocumentSelect("certificateOfIncorporation", file)}
                 colorClass="emerald"
+                 registrationStatus={registrationStatus}
               />
             )}
 
@@ -915,6 +934,7 @@ export default function IECRegistration() {
                 currentDocState={documents.moaAoa || { name: "", file: null, uploaded: false }}
                 onFileSelect={(file) => handleDocumentSelect("moaAoa", file)}
                 colorClass="emerald"
+                 registrationStatus={registrationStatus}
               />
             )}
           </CardContent>

@@ -95,6 +95,7 @@ const DocumentUploadSection = ({
   currentDocState,
   onFileSelect,
   colorClass = "purple",
+  registrationStatus, // Add this prop
   showCertificateRedirect = false,
   certificateRedirectUrl = "",
   certificateRedirectText = "",
@@ -116,6 +117,7 @@ const DocumentUploadSection = ({
       }
   onFileSelect: (file: File | null) => void
   colorClass?: "purple" | "orange" | "indigo" | "emerald" | "teal" | "blue"
+  registrationStatus?: string // Add this prop type
   showCertificateRedirect?: boolean
   certificateRedirectUrl?: string
   certificateRedirectText?: string
@@ -205,14 +207,14 @@ const DocumentUploadSection = ({
                 <Eye className="h-3 w-3 mr-1" /> View
               </Button>
             )}
-            {(currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
+            {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected" || hasTempFile || !currentDocState.url) && (
               <Button
                 variant="link"
                 className={`p-0 h-auto text-${colorClass}-600 text-xs mt-1`}
                 onClick={handleButtonClick}
               >
-                <Upload className="h-3 w-3 mr-1" />{" "}
-                {currentDocState.status === "rejected" ? "Re-upload" : hasTempFile ? "Change" : "Upload"}
+                <Upload className="h-3 w-3 mr-1" /> 
+                {(registrationStatus === "pending" || registrationStatus === "rejected" || currentDocState.status === "rejected") ? "Re-upload" : hasTempFile ? "Change" : "Upload"}
               </Button>
             )}
           </div>
@@ -872,6 +874,7 @@ export default function ADCodeRegistration() {
             showCertificateRedirect={true}
             certificateRedirectUrl="/dashboard/registration/iec"
             certificateRedirectText="Don't have IEC Certificate?"
+            registrationStatus={registrationStatus}
           />
 
           <div className="space-y-2">
@@ -895,6 +898,7 @@ export default function ADCodeRegistration() {
             currentDocState={documents.dscCertificate || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("dscCertificate", file)}
             colorClass="indigo"
+             registrationStatus={registrationStatus}
             showCertificateRedirect={true}
             certificateRedirectUrl="/dashboard/registration/dsc"
             certificateRedirectText="Don't have DSC Certificate?"
@@ -908,6 +912,7 @@ export default function ADCodeRegistration() {
             currentDocState={documents.adCodeLetterFromBank || { name: "", file: null, uploaded: false }}
             onFileSelect={(file) => handleDocumentSelect("adCodeLetterFromBank", file)}
             colorClass="emerald"
+             registrationStatus={registrationStatus}
           />
         </CardContent>
       </Card>
@@ -931,6 +936,7 @@ export default function ADCodeRegistration() {
               currentDocState={documents.authorizationLetter || { name: "", file: null, uploaded: false }}
               onFileSelect={(file) => handleDocumentSelect("authorizationLetter", file)}
               colorClass="orange"
+               registrationStatus={registrationStatus}
             />
           </CardContent>
         </Card>
