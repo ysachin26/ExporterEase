@@ -1,23 +1,32 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle, Clock, AlertCircle, FileText, TrendingUp, Bell, type LucideIcon, XCircle } from "lucide-react"
+import { CheckCircle, Clock, AlertCircle, FileText, TrendingUp, Bell, type LucideIcon } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { ProfileCompletionModal } from "@/components/profile-completion-modal"
-import { getDashboardData, markNotificationAsRead, updateRegistrationStep } from "@/app/actions"
+import { getDashboardData, markNotificationAsRead } from "@/app/actions"
 import Link from "next/link"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+  type CarouselApi,
+} from "@/components/ui/carousel"
+import { cn } from "@/lib/utils"
 
-// Map string icon names to Lucide React components
+// Map string icon names to Lucide React components (kept for Quick Stats)
 const iconMap: { [key: string]: LucideIcon } = {
   CheckCircle,
   Clock,
   AlertCircle,
   FileText,
   TrendingUp,
-  XCircle, // Add XCircle for rejected status
+  Bell,
 }
 
 interface UserData {
@@ -46,7 +55,6 @@ interface UserData {
   nocUrl: string
   propertyProofUrl: string
   electricityBillOwnedUrl: string
-  otherProofUrl: string
   adCodeLetterFromBankUrl: string
   bankDocumentUrl: string
 }
@@ -56,7 +64,7 @@ interface RegistrationStep {
   name: string
   status: string
   icon: string
-  completedAt?: string // Changed to string for ISO date
+  completedAt?: string
 }
 
 interface Notification {
@@ -65,7 +73,7 @@ interface Notification {
   message: string
   type: string
   read: boolean
-  createdAt: string // Changed to string for ISO date
+  createdAt: string
 }
 
 interface DashboardData {
@@ -85,13 +93,69 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [hasMounted, setHasMounted] = useState(false)
 
+  // Carousel state
+  const [api, setApi] = useState<CarouselApi>()
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
+
+  useEffect(() => {
+    if (!api) {
+      return
+    }
+    api.on("select", () => {
+      setCurrentVideoIndex(api.selectedScrollSnap())
+    })
+  }, [api])
+
+  const videos = [
+    {
+      title: "Getting Started",
+      description: "Introduction to export business basics",
+      duration: "5 min watch",
+      src: "/public1/haifam-video.mp4",
+      poster: "/public1/modern-farming.png",
+      category: "Beginner Guides",
+    },
+    {
+      title: "Complete Registration Guide",
+      description: "Step-by-step registration process walkthrough",
+      duration: "12 min watch",
+      src: "/public1/haifam-video.mp4",
+      poster: "/public1/modern-farming.png",
+      featured: true,
+      category: "Registration Steps",
+    },
+    {
+      title: "Document Preparation",
+      description: "Required documents and how to prepare them",
+      duration: "8 min watch",
+      src: "/public1/haifam-video.mp4",
+      poster: "/public1/modern-farming.png",
+      category: "Registration Steps",
+    },
+    {
+      title: "Understanding Regulations",
+      description: "Key export regulations and compliance",
+      duration: "10 min watch",
+      src: "/public1/haifam-video.mp4",
+      poster: "/placeholder.svg?height=225&width=400",
+      category: "Advanced Topics",
+    },
+    {
+      title: "Shipping & Logistics",
+      description: "Navigating international shipping",
+      duration: "7 min watch",
+      src: "/public1/haifam-video.mp4",
+      poster: "/placeholder.svg?height=225&width=400",
+      category: "Advanced Topics",
+    },
+  ]
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
       const data = await getDashboardData()
       setDashboardData(data)
 
-      // Show profile completion modal on first load if profile is incomplete
       if (data && data.profileCompletion < 100 && hasMounted) {
         const hasShownModal = localStorage.getItem("profileModalShown")
         if (!hasShownModal) {
@@ -112,48 +176,9 @@ export default function Dashboard() {
     fetchDashboardData()
   }, [])
 
-  const getRegistrationPagePath = (stepId: number) => {
-    switch (stepId) {
-      case 2:
-        return "/dashboard/registration/gst"
-      case 3:
-        return "/dashboard/registration/iec"
-      case 4:
-        return "/dashboard/registration/dsc"
-      case 5:
-        return "/dashboard/registration/icegate"
-      case 6:
-        return "/dashboard/registration/adcode"
-      default:
-        return "/dashboard/registration" // Fallback or general registration page
-    }
-  }
-
-  const handleStepAction = async (stepId: number, currentStatus: string) => {
-    if (currentStatus === "pending") {
-      await updateRegistrationStep(stepId, "in-progress")
-      fetchDashboardData() // Refresh data
-    }
-    // For rejected status, we will redirect to the specific registration page
-    // The Link component below handles this directly.
-  }
-
   const handleNotificationClick = async (notificationId: string) => {
     await markNotificationAsRead(notificationId)
-    fetchDashboardData() // Refresh data
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-600 border-green-200"
-      case "in-progress":
-        return "bg-teal-100 text-teal-600 border-teal-200"
-      case "rejected": // New color for rejected status
-        return "bg-red-100 text-red-600 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-400 border-gray-200"
-    }
+    fetchDashboardData()
   }
 
   const getNotificationColor = (type: string) => {
@@ -334,11 +359,24 @@ export default function Dashboard() {
           </Card>
         ) : (
           <>
-            {/* Registration Progress */}
+            {/* Overall Registration Progress Bar */}
             <Card>
               <CardHeader>
-                <CardTitle>Registration Progress</CardTitle>
-                <CardDescription>Complete all the steps below to become an export-ready business</CardDescription>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>Overall Registration Progress</CardTitle>
+                    <CardDescription>Your journey to becoming an export-ready business</CardDescription>
+                  </div>
+                  <Link href="/dashboard/progress">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100"
+                    >
+                      Track Your Progress
+                    </Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -348,139 +386,79 @@ export default function Dashboard() {
                   </div>
                   <Progress value={overallProgress} className="h-2" />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
-                  {registrationSteps.map((step) => {
-                    const Icon = iconMap[step.icon] || AlertCircle
-                    const isRejected = step.status === "rejected"
-                    const isCompleted = step.status === "completed"
-                    const isPending = step.status === "pending"
-
-                    return (
-                      <div key={step.id} className="text-center">
-                        <Link href={getRegistrationPagePath(step.id)}>
-                          <button
-                            onClick={() => handleStepAction(step.id, step.status)}
-                            className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${getStatusColor(step.status)} hover:opacity-80`}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </button>
-                        </Link>
-                        <div className="text-xs font-medium text-gray-900">{step.name}</div>
-                        <div className="text-xs text-gray-500 capitalize">{step.status.replace("-", " ")}</div>
-                        {step.completedAt && isCompleted && (
-                          <div className="text-xs text-green-600 mt-1">
-                            {new Date(step.completedAt).toLocaleDateString()}
-                          </div>
-                        )}
-                        {isRejected && (
-                          <Link href={getRegistrationPagePath(step.id)}>
-                            <Button variant="link" size="sm" className="text-red-600 text-xs h-auto p-0 mt-1">
-                              Review & Re-upload
-                            </Button>
-                          </Link>
-                        )}
-                        {isPending && (
-                          <Link href={getRegistrationPagePath(step.id)}>
-                            <Button variant="link" size="sm" className="text-teal-600 text-xs h-auto p-0 mt-1">
-                              Start / Continue
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
               </CardContent>
             </Card>
 
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Completion Status */}
-              {overallProgress === 100 ? (
-                <Card className="border-green-200 bg-green-50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-8 w-8 text-green-600" />
-                      <div>
-                        <h3 className="font-semibold text-green-900">All Steps Completed!</h3>
-                        <p className="text-sm text-green-700">
-                          Congratulations! You've completed all the export registration steps.
-                        </p>
-                      </div>
-                    </div>
-                    <Button className="mt-4 bg-green-600 hover:bg-green-700">View Your Certificates</Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="border-teal-200 bg-teal-50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-8 w-8 text-teal-600" />
-                      <div>
-                        <h3 className="font-semibold text-teal-900">Registration In Progress</h3>
-                        <p className="text-sm text-teal-700">
-                          {registrationSteps.filter((s) => s.status === "pending").length} steps remaining to complete
-                          your export registration.
-                        </p>
-                      </div>
-                    </div>
-                    <Button className="mt-4 bg-teal-600 hover:bg-teal-700">Continue Registration</Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Recent Notifications */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Bell className="h-5 w-5" />
-                    Recent Notifications
-                    {notifications.filter((n) => !n.read).length > 0 && (
-                      <Badge variant="destructive" className="ml-auto">
-                        {notifications.filter((n) => !n.read).length}
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {notifications.length > 0 ? (
-                      notifications.map((notification) => (
+            {/* Video Tutorial Section */}
+            <Card className="bg-gray-50 border-gray-200">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-gray-800">
+                  📚 Learn How to Become an Exporter
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Watch our step-by-step tutorials to understand the export registration process
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Carousel setApi={setApi} className="w-full max-w-4xl mx-auto">
+                  <CarouselContent className="-ml-4">
+                    {videos.map((video, index) => (
+                      <CarouselItem key={index} className="pl-4 md:basis-1/2 lg:basis-1/3">
                         <div
-                          key={notification.id}
-                          onClick={() => handleNotificationClick(notification.id)}
-                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-50 ${getNotificationColor(notification.type)} ${notification.read ? "opacity-60" : ""}`}
-                        >
-                          <div
-                            className={`w-2 h-2 rounded-full mt-2 ${notification.read ? "bg-gray-400" : "bg-teal-500"}`}
-                          ></div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{notification.title}</p>
-                            <p className="text-xs text-gray-600">{notification.message}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(notification.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {!notification.read && (
-                            <Badge variant="secondary" className="text-xs">
-                              New
-                            </Badge>
+                          className={cn(
+                            "bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-300 ease-in-out",
+                            index === currentVideoIndex
+                              ? "scale-105 opacity-100 shadow-md border-teal-200"
+                              : "scale-95 opacity-70 blur-[0.5px]",
                           )}
+                        >
+                          <div className="relative">
+                            <video
+                              className="w-full h-40 object-cover"
+                              poster={video.poster}
+                              muted
+                              controls={index === currentVideoIndex}
+                            >
+                              <source src={video.src} type="video/mp4" />
+                            </video>
+                            {index !== currentVideoIndex && (
+                              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                                <div className="w-12 h-12 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
+                                  <div className="w-0 h-0 border-l-4 border-l-gray-700 border-t-2 border-t-transparent border-b-2 border-b-transparent ml-1"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-4">
+                            <h3 className="font-medium text-gray-900 mb-1">{video.title}</h3>
+                            <p className="text-sm text-gray-600 mb-2">{video.description}</p>
+                            <span className="text-xs text-gray-500">{video.duration}</span>
+                            {video.featured && (
+                              <Badge variant="secondary" className="ml-2 bg-teal-100 text-teal-700">
+                                Featured
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-4">No notifications yet</p>
-                    )}
-                  </div>
-                  {notifications.length > 0 && (
-                    <Button variant="link" className="mt-3 p-0 h-auto text-teal-600">
-                      View all notifications
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 z-10" />
+                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 z-10" />
+                </Carousel>
+
+                <div className="mt-6 text-center">
+                  <Link href="/dashboard/tutorials">
+                    <Button
+                      variant="outline"
+                      className="text-gray-700 border-gray-300 hover:bg-gray-100 bg-transparent"
+                    >
+                      View All Video Tutorials
                     </Button>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           </>
         )}
       </div>
