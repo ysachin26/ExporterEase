@@ -243,15 +243,15 @@ export default function Dashboard() {
     <>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Welcome, {user.fullName}</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Welcome, {user.fullName}</h1>
+            <p className="text-gray-600 mt-1 text-sm md:text-base">
               {user.businessName} • Track your export registration progress and manage your documents
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-sm">
+            <Badge variant="outline" className="text-xs md:text-sm">
               {user.mobileNo}
             </Badge>
           </div>
