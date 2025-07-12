@@ -85,9 +85,26 @@ export default function HeroSection() {
       </div>
 
       {/* Updates Banner */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-r from-emerald-600/90 via-teal-600/90 to-emerald-600/90 backdrop-blur-sm text-white py-4 px-4 shadow-2xl">
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-r from-emerald-600/90 via-teal-600/90 to-emerald-600/90 backdrop-blur-sm text-white py-3 sm:py-4 px-4 shadow-2xl">
         <div className="container mx-auto">
-          <div className="flex items-center space-x-4">
+          {/* Mobile Layout: Header above slider */}
+          <div className="block sm:hidden">
+            <div className="text-center mb-2">
+              <span className="font-bold bg-gradient-to-r from-emerald-700 to-teal-700 px-3 py-1.5 rounded-full shadow-lg text-sm">
+                🚀 Latest Updates
+              </span>
+            </div>
+            <div className="overflow-hidden">
+              <div className="animate-marquee whitespace-nowrap text-sm">
+                <span className="mr-8">🌾 New AI crop prediction system - Increase yield by 40%</span>
+                <span className="mr-8">📱 Mobile app launched - Manage your farm anywhere</span>
+                <span className="mr-8">💰 Special financing for small farmers - Apply now</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop Layout: Inline header and slider */}
+          <div className="hidden sm:flex items-center space-x-4">
             <span className="font-bold bg-gradient-to-r from-emerald-700 to-teal-700 px-4 py-2 rounded-full shadow-lg animate-pulse">
               🚀 Latest Updates
             </span>
