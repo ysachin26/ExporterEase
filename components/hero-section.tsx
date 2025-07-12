@@ -39,14 +39,14 @@ export default function HeroSection() {
               <span className="text-emerald-200 text-sm font-medium">🌾 Revolutionizing Agriculture</span>
             </div>
 
-            <h1 className="text-5xl lg:text-7xl font-bold text-white leading-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-white leading-tight break-words">
               Welcome to{" "}
               <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
                 GoFarmlyConnect
               </span>
             </h1>
 
-            <p className="text-xl lg:text-2xl text-emerald-100 leading-relaxed max-w-4xl mx-auto">
+            <p className="text-lg sm:text-xl lg:text-2xl text-emerald-100 leading-relaxed max-w-4xl mx-auto break-words">
               Transform your farming operations with our comprehensive digital platform. Join thousands of farmers who
               have increased their productivity by 40% using our innovative solutions.
             </p>
