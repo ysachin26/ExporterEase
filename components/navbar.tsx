@@ -27,15 +27,15 @@ export default function Navbar() {
   ]
 
   return (
-    <nav className="bg-gradient-to-r from-emerald-900 via-teal-800 to-emerald-900 shadow-2xl sticky top-0 z-50 backdrop-blur-sm border-b border-emerald-700/30">
+    <nav className="bg-gradient-to-r from-emerald-900 via-teal-800 to-emerald-900 shadow-2xl sticky top-0 z-50 backdrop-blur-sm border-b border-emerald-700/30 overflow-x-hidden">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-16 max-w-full">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
+          <Link href="/" className="flex items-center space-x-3 group flex-shrink-0">
             <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 shadow-lg">
               <span className="text-white font-bold text-lg">🌾</span>
             </div>
-            <div className="text-2xl font-bold text-white group-hover:text-emerald-300 transition-all duration-500 transform group-hover:scale-105">
+            <div className="text-xl sm:text-2xl font-bold text-white group-hover:text-emerald-300 transition-all duration-500 transform group-hover:scale-105 truncate">
               GoFarmlyConnect
             </div>
           </Link>
