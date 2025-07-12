@@ -62,8 +62,8 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Login Button and Language Selector */}
-          <div className="flex items-center space-x-4 flex-shrink-0 min-w-fit">
+          {/* Desktop Login Button and Language Selector */}
+          <div className="hidden lg:flex items-center space-x-4 flex-shrink-0 min-w-fit">
             <Link href="/login" passHref>
               <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-xl font-medium transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl">
               Login / Register
@@ -98,12 +98,45 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Mobile Elements */}
+          <div className="flex lg:hidden items-center space-x-3">
+            {/* Language Selector for Mobile */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white hover:text-emerald-300 hover:bg-white/10 rounded-xl transition-all duration-300 flex items-center space-x-1 transform hover:scale-105"
+                onClick={() => setIsLanguageOpen(!isLanguageOpen)}
+              >
+                <Globe className="w-4 h-4" />
+                <span className="text-xs">ENG</span>
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform duration-300 ${isLanguageOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+
+              {isLanguageOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 animate-slideDown">
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      className="w-full text-left px-3 py-2 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-all duration-200 flex items-center space-x-2 text-sm"
+                      onClick={() => setIsLanguageOpen(false)}
+                    >
+                      <span>{lang.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Mobile Menu Button */}
             <Button
               variant="ghost"
               size="sm"
-              className="lg:hidden text-white hover:text-emerald-300 hover:bg-white/10 rounded-xl transition-all duration-300 transform hover:scale-105"
+              className="text-white hover:text-emerald-300 hover:bg-white/10 rounded-xl transition-all duration-300 transform hover:scale-105"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
