@@ -391,19 +391,19 @@ export default function Dashboard() {
 
             {/* Video Tutorial Section */}
             <Card className="bg-gray-50 border-gray-200">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold text-gray-800">
+              <CardHeader className="pb-3 md:pb-4">
+                <CardTitle className="text-base md:text-lg font-semibold text-gray-800">
                   📚 Learn How to Become an Exporter
                 </CardTitle>
-                <CardDescription className="text-gray-600">
+                <CardDescription className="text-gray-600 text-sm">
                   Watch our step-by-step tutorials to understand the export registration process
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 md:px-6">
                 <Carousel setApi={setApi} className="w-full max-w-4xl mx-auto">
-                  <CarouselContent className="-ml-4">
+                  <CarouselContent className="-ml-2 md:-ml-4">
                     {videos.map((video, index) => (
-                      <CarouselItem key={index} className="pl-4 md:basis-1/2 lg:basis-1/3">
+                      <CarouselItem key={index} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
                         <div
                           className={cn(
                             "bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-300 ease-in-out",
@@ -414,7 +414,7 @@ export default function Dashboard() {
                         >
                           <div className="relative">
                             <video
-                              className="w-full h-40 object-cover"
+                              className="w-full h-32 md:h-40 object-cover"
                               poster={video.poster}
                               muted
                               controls={index === currentVideoIndex}
@@ -423,18 +423,18 @@ export default function Dashboard() {
                             </video>
                             {index !== currentVideoIndex && (
                               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                                <div className="w-12 h-12 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
-                                  <div className="w-0 h-0 border-l-4 border-l-gray-700 border-t-2 border-t-transparent border-b-2 border-b-transparent ml-1"></div>
+                                <div className="w-10 h-10 md:w-12 md:h-12 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
+                                  <div className="w-0 h-0 border-l-3 md:border-l-4 border-l-gray-700 border-t-2 border-t-transparent border-b-2 border-b-transparent ml-1"></div>
                                 </div>
                               </div>
                             )}
                           </div>
-                          <div className="p-4">
-                            <h3 className="font-medium text-gray-900 mb-1">{video.title}</h3>
-                            <p className="text-sm text-gray-600 mb-2">{video.description}</p>
+                          <div className="p-3 md:p-4">
+                            <h3 className="font-medium text-gray-900 mb-1 text-sm md:text-base">{video.title}</h3>
+                            <p className="text-xs md:text-sm text-gray-600 mb-2">{video.description}</p>
                             <span className="text-xs text-gray-500">{video.duration}</span>
                             {video.featured && (
-                              <Badge variant="secondary" className="ml-2 bg-teal-100 text-teal-700">
+                              <Badge variant="secondary" className="ml-2 bg-teal-100 text-teal-700 text-xs">
                                 Featured
                               </Badge>
                             )}
@@ -443,8 +443,8 @@ export default function Dashboard() {
                       </CarouselItem>
                     ))}
                   </CarouselContent>
-                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 z-10" />
-                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 z-10" />
+                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden sm:flex" />
+                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden sm:flex" />
                 </Carousel>
 
                 <div className="mt-6 text-center">
