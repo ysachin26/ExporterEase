@@ -12,7 +12,7 @@ import Footer from "@/components/footer"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <Navbar />
       <HeroSection />
       <HeroContentSection />
