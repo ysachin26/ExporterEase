@@ -162,6 +162,18 @@ export default function Navbar() {
                   </Link>
                 )
               })}
+              
+              {/* Login Button in Mobile Menu */}
+              <div className="pt-4 border-t border-emerald-700">
+                <Link href="/login" passHref>
+                  <Button 
+                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-medium transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Login / Register
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         )}
