@@ -31,12 +31,13 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16 max-w-full">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group flex-shrink-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 shadow-lg">
-              <span className="text-white font-bold text-lg">🌾</span>
+          <Link href="/" className="flex items-center space-x-2 group flex-shrink-0 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 shadow-lg">
+              <span className="text-white font-bold text-sm sm:text-lg">🌾</span>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-white group-hover:text-emerald-300 transition-all duration-500 transform group-hover:scale-105 truncate">
-              GoFarmlyConnect
+            <div className="text-sm sm:text-xl lg:text-2xl font-bold text-white group-hover:text-emerald-300 transition-all duration-500 transform group-hover:scale-105 truncate">
+              <span className="hidden sm:inline">GoFarmlyConnect</span>
+              <span className="sm:hidden">GoFarmly</span>
             </div>
           </Link>
 
