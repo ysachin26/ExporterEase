@@ -67,18 +67,18 @@ export default function HeroSection() {
             </Button>
           </div>
 
-          <div className="flex items-center justify-center space-x-12 pt-8">
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 lg:gap-12 pt-8">
             <div className="text-center">
-              <div className="text-4xl font-bold text-white">50K+</div>
-              <div className="text-emerald-200 text-sm">Active Farmers</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white">50K+</div>
+              <div className="text-emerald-200 text-xs sm:text-sm">Active Farmers</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-white">₹500Cr+</div>
-              <div className="text-emerald-200 text-sm">Trade Volume</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white">₹500Cr+</div>
+              <div className="text-emerald-200 text-xs sm:text-sm">Trade Volume</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-white">99.9%</div>
-              <div className="text-emerald-200 text-sm">Uptime</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white">99.9%</div>
+              <div className="text-emerald-200 text-xs sm:text-sm">Uptime</div>
             </div>
           </div>
         </div>
