@@ -29,10 +29,10 @@ export default function CompanyTieup() {
               Trusted Partners
             </span>
           </div>
-          <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-800 to-teal-700 bg-clip-text text-transparent mb-6 animate-fadeInUp">
+          <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-emerald-800 to-teal-700 bg-clip-text text-transparent mb-6 animate-fadeInUp">
             Our Partners & Integrations
           </h2>
-          <p className="text-gray-600 max-w-3xl mx-auto text-lg leading-relaxed animate-fadeInUp animation-delay-200">
+          <p className="text-gray-600 max-w-3xl mx-auto text-base md:text-lg leading-relaxed animate-fadeInUp animation-delay-200">
             Working with leading government bodies, financial institutions, and technology partners to create a
             comprehensive agricultural ecosystem
           </p>
