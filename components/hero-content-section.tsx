@@ -21,14 +21,14 @@ export default function HeroContentSection() {
                 <span className="text-emerald-700 text-sm font-medium">Revolutionizing Agriculture</span>
               </div>
 
-              <h1 className="text-5xl lg:text-7xl font-bold text-gray-800 leading-tight">
+              <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold text-gray-800 leading-tight">
                  Simplify Your{" "}
                 <span className="bg-gradient-to-r from-emerald-600 to-teal-700 bg-clip-text text-transparent">
                   Import Export
                 </span>
               </h1>
 
-              <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
+              <p className="text-lg md:text-xl text-gray-600 leading-relaxed max-w-2xl">
                 Complete digital platform for import-export documentation, customs clearance, and trade compliance. Process your shipments 70% faster with our automated filing system.
               </p>
             </div>
