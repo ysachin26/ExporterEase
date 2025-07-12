@@ -40,18 +40,18 @@ export default function CompanyTieup() {
 
         {/* Partners Grid - Fixed width and proper container */}
         <div className="max-w-6xl mx-auto relative overflow-hidden">
-          <div className="flex animate-scroll space-x-6 py-4">
+          <div className="flex animate-scroll space-x-3 md:space-x-6 py-4">
             {duplicatedPartners.map((partner, index) => (
-              <div key={index} className="flex-shrink-0 group cursor-pointer w-64">
-                <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 group-hover:border-emerald-200 transform hover:scale-105 hover:-translate-y-2">
+              <div key={index} className="flex-shrink-0 group cursor-pointer w-48 md:w-64">
+                <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 group-hover:border-emerald-200 transform hover:scale-105 hover:-translate-y-2">
                   <div className="text-center">
-                    <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className="text-3xl md:text-5xl mb-3 md:mb-4 group-hover:scale-110 transition-transform duration-300">
                       {partner.logo}
                     </div>
-                    <h3 className="font-bold text-base text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 mb-2">
+                    <h3 className="font-bold text-sm md:text-base text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 mb-2">
                       {partner.name}
                     </h3>
-                    <span className="inline-block bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">
+                    <span className="inline-block bg-emerald-100 text-emerald-700 px-2 md:px-3 py-1 rounded-full text-xs font-medium">
                       {partner.category}
                     </span>
                   </div>
