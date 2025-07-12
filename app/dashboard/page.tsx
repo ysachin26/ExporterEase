@@ -260,13 +260,13 @@ export default function Dashboard() {
         {/* Profile Completion Alert */}
         {!isProfileComplete && (
           <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+            <CardContent className="p-3 md:p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-medium text-yellow-900">Complete Your Profile</h3>
-                    <p className="text-sm text-yellow-700">
+                    <h3 className="font-medium text-yellow-900 text-sm md:text-base">Complete Your Profile</h3>
+                    <p className="text-xs md:text-sm text-yellow-700">
                       Complete your profile to unlock all features ({profileCompletion}% done)
                     </p>
                   </div>
@@ -274,7 +274,7 @@ export default function Dashboard() {
                 <Button
                   size="sm"
                   onClick={() => setShowProfileModal(true)}
-                  className="bg-yellow-600 hover:bg-yellow-700"
+                  className="bg-yellow-600 hover:bg-yellow-700 w-full md:w-auto"
                 >
                   Complete Now
                 </Button>
